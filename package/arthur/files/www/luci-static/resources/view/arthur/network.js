@@ -1,0 +1,206 @@
+'use strict';
+'require view';
+'require rpc';
+'require form';
+'require uci';
+'require poll';
+'require dom';
+
+var callStatus = rpc.declare({object: 'arthur', method: 'status', expect: {'': {}}});
+var callIPv6Status = rpc.declare({object: 'arthur', method: 'ipv6_status', expect: {'': {}}});
+var callIPv6Set = rpc.declare({object: 'arthur', method: 'ipv6_set', params: ['disabled'], expect: {'': {}}});
+var callDiagnose = rpc.declare({object: 'arthur', method: 'diagnose', expect: {'': {}}});
+
+return view.extend({
+    load: function() {
+        return Promise.all([uci.load('arthur'), callStatus(), callIPv6Status().catch(function() { return {}; })]);
+    },
+
+    updateStatus: function(data) {
+        var ports = (data.ports || []).slice();
+        if (data.usb_port)
+            ports.push(data.usb_port);
+        var rows = ports.map(function(port) {
+            var state = !port.present ? _('接口不存在') : (port.link ? _('已连接') : _('未连接'));
+            var speed = !port.link ? '—' : (port.speed > 0 ? port.speed + ' Mbps' : _('无法读取'));
+            var duplex = !port.link ? '—' : (port.duplex === 'full' ? _('全双工') : (port.duplex === 'half' ? _('半双工') : _('未知')));
+            return E('tr', {'class': 'tr'}, [
+                E('td', {'class': 'td'}, [port.label]),
+                E('td', {'class': 'td'}, [port.device]),
+                E('td', {'class': 'td'}, [state]),
+                E('td', {'class': 'td'}, [speed]),
+                E('td', {'class': 'td'}, [duplex])
+            ]);
+        });
+        dom.content(this.portRows, rows);
+        var usb = !data.usb_enabled ? _('USB 上网已关闭') :
+            (!data.usb_present ? _('USB 上网已开启，等待连接随身 WiFi') :
+            (data.usb_up ? _('随身 WiFi 已连接并取得上网接口') : _('已发现随身 WiFi，正在建立 DHCP 连接')));
+        dom.content(this.usbStatus, [usb + (data.usb_device ? ' · ' + data.usb_device : '')]);
+        var busSpeed = data.usb_bus_speed > 0 ? data.usb_bus_speed + ' Mbps' : _('无法读取');
+        dom.content(this.usbSpeed, [
+            _('USB 总线连接速率：') + (data.usb_present ? busSpeed : _('未连接')) +
+            _('。USB 行的链路速率由网卡驱动报告；两者均不代表蜂窝网络或宽带测速。')
+        ]);
+    },
+
+    updateIPv6: function(data) {
+        this.ipv6 = data || {};
+        var enabled = !!this.ipv6.available;
+        var requested = !!this.ipv6.requested_disabled;
+        this.ipv6Button.disabled = !enabled || !!this.changingIPv6;
+        dom.content(this.ipv6Button, [requested ? _('恢复 IPv6') : _('关闭 IPv6')]);
+        dom.content(this.ipv6Status, [!enabled ? _('无法读取 IPv6 状态') :
+            (requested ? (this.ipv6.disabled ? _('路由器 IPv6 已关闭') : _('关闭设置已保存，等待接口应用')) :
+            (this.ipv6.disabled ? _('IPv6 已由其他设置关闭') : _('未使用快捷开关关闭 IPv6')))]);
+    },
+
+    changeIPv6: function() {
+        if (this.changingIPv6 || !this.ipv6.available)
+            return Promise.resolve();
+        var target = !this.ipv6.requested_disabled;
+        // Keep an IPv6-authenticated browser from losing access during the change.
+        if (target && !/^(?:\d{1,3}\.){3}\d{1,3}$/.test(window.location.hostname)) {
+            dom.content(this.ipv6Message, [_('请先通过路由器的 IPv4 管理地址登录，再关闭 IPv6。')]);
+            return Promise.resolve();
+        }
+        this.ipv6Generation = (this.ipv6Generation || 0) + 1;
+        this.changingIPv6 = true;
+        this.ipv6Button.disabled = true;
+        dom.content(this.ipv6Message, [_('正在应用设置……')]);
+        return callIPv6Set(target).then(L.bind(function(result) {
+            if (!result.ok) {
+                var errors = {
+                    busy: _('系统正在应用网络设置，请稍后重试。'),
+                    forwarding_busy: _('无法清退现有转发加速规则，未修改 IPv6。'),
+                    save_failed: _('设置保存失败，请重试。'),
+                    unavailable: _('当前系统无法切换 IPv6。')
+                };
+                dom.content(this.ipv6Message, [errors[result.error] || _('未能完整应用设置，请查看下方状态。')]);
+                return callIPv6Status().then(L.bind(this.updateIPv6, this));
+            }
+            this.updateIPv6(result.ipv6);
+            dom.content(this.ipv6Message, [target ? _('设置已保存。') : _('已恢复本开关接管前的设置，地址和前缀可能需要重新获取。')]);
+        }, this)).catch(L.bind(function() {
+            dom.content(this.ipv6Message, [_('未收到结果。请通过 IPv4 重新打开页面查看状态。')]);
+        }, this)).finally(L.bind(function() {
+            this.changingIPv6 = false;
+            this.ipv6Button.disabled = !this.ipv6.available;
+        }, this));
+    },
+
+    showDiagnosis: function(data) {
+        var rows = (data.uplinks || []).map(function(link) {
+            var probes = link.probes || [];
+            var web = (link.https || []).some(function(test) { return test.reachable; });
+            var ping = probes.some(function(test) { return typeof test.loss === 'number' && test.loss < 100; });
+            var unstable = probes.some(function(test) {
+                return (typeof test.loss === 'number' && test.loss > 0 && test.loss < 100) ||
+                    (typeof test.latency === 'number' && test.latency > 150);
+            });
+            var summary = !link.up ? _('接口未连接') : (!link.ready ? _('未取得 IPv4 地址') :
+                (web ? (unstable ? _('外网可达，本次采样有延迟或丢包') : _('本次外网检测可达')) :
+                (ping ? _('IP 可达，HTTPS 检测未通过') : _('本次外网检测未通过'))));
+            var samples = probes.map(function(test) {
+                var latency = typeof test.latency === 'number' ? test.latency + ' ms' : _('无响应或无法读取');
+                var loss = typeof test.loss === 'number' ? test.loss + '%' : _('未测得');
+                return E('div', {}, [test.target + '：' + latency + ' / ' + _('丢包 ') + loss]);
+            });
+            return E('tr', {'class': 'tr'}, [
+                E('td', {'class': 'td'}, [link.interface === 'f50' ? _('随身 WiFi（USB）') : _('宽带（WAN）')]),
+                E('td', {'class': 'td'}, [summary]),
+                E('td', {'class': 'td'}, [link.address || '—']),
+                E('td', {'class': 'td'}, [!link.ready ? '—' : (web ? _('可达') : _('未通过'))]),
+                E('td', {'class': 'td'}, samples.length ? samples : ['—'])
+            ]);
+        });
+        if (!rows.length)
+            throw new Error(_('未返回有效检测结果，请重试。'));
+        dom.content(this.healthRows, rows);
+        var time = data.timestamp ? new Date(data.timestamp * 1000).toLocaleTimeString() : '';
+        dom.content(this.healthStatus, [_('检测完成（IPv4）') + (time ? ' · ' + time : '')]);
+    },
+
+    runDiagnosis: function(event) {
+        if (this.diagnosing)
+            return Promise.resolve();
+        var button = event.currentTarget;
+        this.diagnosing = true;
+        button.disabled = true;
+        dom.content(this.healthStatus, [_('正在检测，请稍候……')]);
+        return callDiagnose().then(L.bind(this.showDiagnosis, this)).catch(L.bind(function() {
+            dom.content(this.healthStatus, [_('本次检测失败，请重试。下方如有结果，仍为上一次采样。')]);
+        }, this)).finally(L.bind(function() {
+            this.diagnosing = false;
+            button.disabled = false;
+        }, this));
+    },
+
+    render: function(data) {
+        var m = new form.Map('arthur', _('USB 上网设置'),
+            _('控制随身 WiFi 的 USB 上网接口。支持 CDC-ECM、RNDIS、NCM 共享网络模式；关闭后保留设备供电，设置在重启后继续生效。'));
+        var s = m.section(form.NamedSection, 'usb', 'usb');
+        s.anonymous = true;
+        var o = s.option(form.Flag, 'enabled', _('开启 USB 上网'));
+        o.default = '1';
+        o.rmempty = false;
+
+        this.ipv6Status = E('p', {'role': 'status'});
+        this.ipv6Message = E('p', {'role': 'status'});
+        this.ipv6Button = E('button', {'class': 'cbi-button cbi-button-action', 'type': 'button',
+            'click': L.bind(this.changeIPv6, this)});
+        this.updateIPv6(data[2]);
+        this.portRows = E('tbody');
+        this.usbStatus = E('p', {'class': 'cbi-section-descr'});
+        this.usbSpeed = E('p', {'class': 'cbi-section-descr'});
+        this.healthRows = E('tbody');
+        this.healthStatus = E('p', {'class': 'cbi-section-descr'}, [_('尚未检测，点击按钮开始。')]);
+        var healthTable = E('table', {'class': 'table'}, [
+            E('thead', {}, [E('tr', {'class': 'tr table-titles'},
+                [_('上网来源'), _('检测状态'), _('IPv4 地址'), _('HTTPS'), _('测点：平均延迟 / 丢包')].map(function(title) {
+                    return E('th', {'class': 'th'}, [title]);
+                }))]), this.healthRows
+        ]);
+        var table = E('table', {'class': 'table'}, [
+            E('thead', {}, [E('tr', {'class': 'tr table-titles'},
+                [_('网口'), _('设备'), _('链路状态'), _('协商速率'), _('双工模式')].map(function(title) {
+                    return E('th', {'class': 'th'}, [title]);
+                }))]), this.portRows
+        ]);
+        this.updateStatus(data[1]);
+        poll.add(L.bind(function() {
+            var generation = this.ipv6Generation || 0;
+            return Promise.all([callStatus().then(L.bind(this.updateStatus, this)),
+                callIPv6Status().then(L.bind(function(status) {
+                    if (!this.changingIPv6 && generation === (this.ipv6Generation || 0)) this.updateIPv6(status);
+                }, this)).catch(function() {})]);
+        }, this), 3);
+        return m.render().then(L.bind(function(formNode) {
+            return E('div', {}, [
+                E('h2', {}, [_('亚瑟网络面板')]),
+                E('div', {'class': 'cbi-section'}, [
+                    E('h3', {}, [_('接口协商速率')]),
+                    E('p', {'class': 'cbi-section-descr'}, [_('每 3 秒刷新 WAN、LAN1、LAN2、LAN3 和 USB 网卡链路状态。协商速率不代表宽带测速结果。')]),
+                    table,
+                    E('h3', {}, [_('USB 上网状态')]),
+                    this.usbStatus,
+                    this.usbSpeed
+                ]),
+                E('div', {'class': 'cbi-section'}, [
+                    E('h3', {}, [_('IPv6 快捷设置')]),
+                    E('p', {'class': 'cbi-section-descr'}, [_('请通过 IPv4 管理地址操作。关闭会中断经本路由器的 IPv6 连接，保留 IPv4；局域网内设备之间的 IPv6 或其他路由器提供的 IPv6 不受此开关管理。')]),
+                    this.ipv6Status, this.ipv6Button, this.ipv6Message
+                ]),
+                E('div', {'class': 'cbi-section'}, [
+                    E('h3', {}, [_('网络质量检测')]),
+                    E('p', {'class': 'cbi-section-descr'}, [_('手动检测 WAN 与 USB 随身 WiFi 的 IPv4 接入、外网可达性、延迟和丢包，约需 6 秒。每个 IP 测点采样 3 次；HTTPS 测点为百度和腾讯。检测使用当前路由与代理策略，少量采样及测点限制不能代表长期质量。')]),
+                    E('p', {'class': 'cbi-section-descr'}, [_('此处不提供蜂窝信号格数或光猫光功率：USB/网线通常不会传递这些数据，需要上游设备提供查询接口。')]),
+                    E('button', {'class': 'cbi-button cbi-button-action', 'type': 'button',
+                        'click': L.bind(this.runDiagnosis, this)}, [_('开始检测')]),
+                    this.healthStatus,
+                    healthTable
+                ]), formNode
+            ]);
+        }, this));
+    }
+});
