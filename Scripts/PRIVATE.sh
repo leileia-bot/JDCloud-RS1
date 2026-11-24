@@ -5,11 +5,12 @@ UPDATE_PACKAGE "daede" "kenzok8/openwrt-daede" "main" "" "dae daed luci-app-daed
 UPDATE_PACKAGE "luci-app-openclash" "vernesong/OpenClash" "dev" "pkg"
 
 # 2. 精简多余主题（只留 luci-theme-argon，亚瑟皮肤就是接在它上面）和未使用的大型插件源码
-rm -rf ./package/luci-theme-vantage
-rm -rf ./package/luci-theme-aurora ./package/luci-app-aurora-config
-rm -rf ./package/luci-theme-fluent ./package/luci-theme-footstrap
-rm -rf ./package/luci-theme-kucat ./package/luci-app-kucat-config
-rm -rf ./package/luci-theme-shadcn
+KEEP_THEME="${WRT_THEME:-argon}"
+for t in vantage aurora fluent footstrap kucat shadcn; do
+	[ "$t" = "$KEEP_THEME" ] && continue
+	rm -rf "./package/luci-theme-$t"
+done
+rm -rf ./package/luci-app-aurora-config ./package/luci-app-kucat-config
 rm -rf ./package/OpenWrt-momo ./package/OpenWrt-nikki
 rm -rf ./package/luci-app-passwall ./package/luci-app-passwall2
 rm -rf ./package/luci-app-qbittorrent ./package/luci-app-openlist2 ./package/luci-app-mosdns
@@ -70,10 +71,36 @@ rm -rf ./feeds/packages/net/fullconenat-sonic ./feeds/luci/applications/luci-app
 rm -rf ./feeds/luci/applications/luci-app-upnp ./feeds/packages/net/miniupnpd
 rm -rf ./feeds/luci/applications/luci-app-samba4
 
-# 5. 调整「服务」菜单顺序：daede (order:20) -> OpenClash 在下（兼容 package 与 feeds 全路径）
-for f in $(find ./package ./feeds -path "*/luci-app-daede/*" -name "*.json" 2>/dev/null); do
-	awk '!done && /"order"[[:space:]]*:/ { sub(/[0-9]+/, "20"); done=1 } { print }' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
-done
+# 5. 「服务」菜单顺序钉死：daede = 1，OpenClash = 2（hornk 已移除，不再参与排序）
+set_menu_order() {
+	local pkg="$1" value="$2" f
+	for f in $(find ./package ./feeds -path "*/$pkg/*" -name "*.json" 2>/dev/null); do
+		awk -v v="$value" '
+			!done && /"order"[[:space:]]*:[[:space:]]*[0-9]+/ {
+				sub(/"order"[[:space:]]*:[[:space:]]*[0-9]+/, "\"order\": " v); done=1
+			}
+			{ print }
+		' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+	done
+}
+set_menu_order luci-app-daede 1
+set_menu_order luci-app-openclash 2
+
+# 5.5 iStore 应用商店（apk 原生：/etc/apk/arch 存在时 is-opkg 自动走 repo-apk）
+rm -rf ./package/istore-src
+if git clone --depth=1 --single-branch --branch main https://github.com/istoreos/istore.git ./package/istore-src 2>/dev/null; then
+	for p in luci-app-store luci-lib-taskd luci-lib-xterm taskd; do
+		if [ -d "./package/istore-src/luci/$p" ]; then
+			rm -rf "./package/$p"
+			cp -rf "./package/istore-src/luci/$p" ./package/
+		fi
+	done
+	rm -rf ./package/istore-src
+	echo "iStore: 已集成 luci-app-store"
+else
+	rm -rf ./package/istore-src
+	echo "iStore: 仓库拉取失败，本次不集成应用商店"
+fi
 
 # 6. 移植亚瑟定制面板：包体 + Argon 皮肤 + 构建标记
 if [ -d "$GITHUB_WORKSPACE/package/arthur" ]; then

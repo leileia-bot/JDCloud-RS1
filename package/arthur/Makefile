@@ -35,7 +35,8 @@ define Package/luci-app-arthur/install
 		$(1)/etc/uci-defaults/90-arthur-service $(1)/usr/libexec/arthur-usb \
 		$(1)/usr/libexec/rpcd/arthur $(1)/usr/libexec/arthur-health \
 		$(1)/etc/init.d/arthur-performance $(1)/usr/libexec/arthur-performance \
-		$(1)/usr/libexec/arthur-performance-watch $(1)/etc/uci-defaults/91-arthur-performance
+		$(1)/usr/libexec/arthur-performance-watch $(1)/etc/uci-defaults/91-arthur-performance \
+		$(1)/etc/uci-defaults/93-arthur-theme
 	chmod 0755 $(1)/usr/libexec/arthur-usb-rps $(1)/etc/hotplug.d/net/91-arthur-performance
 	chmod 0755 $(1)/usr/libexec/arthur-identity $(1)/etc/init.d/arthur-identity $(1)/etc/uci-defaults/92-arthur-identity
 	chmod 0755 $(1)/usr/libexec/arthur-dashboard $(1)/usr/libexec/arthur-ipv6

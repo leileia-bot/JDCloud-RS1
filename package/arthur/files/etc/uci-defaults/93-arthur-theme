@@ -1,0 +1,7 @@
+#!/bin/sh
+# 这版只带 argon 一个主题；把 LuCI 默认入口钉死，避免指向已删除的主题。
+[ -d /www/luci-static/argon ] || exit 0
+uci -q get luci.main >/dev/null 2>&1 || uci -q set luci.main=core
+uci -q set luci.main.mediaurlbase='/luci-static/argon' || exit 0
+uci -q commit luci
+exit 0

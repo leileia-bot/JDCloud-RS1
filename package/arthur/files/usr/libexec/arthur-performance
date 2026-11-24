@@ -439,7 +439,11 @@ status() {
     zram_used="$(awk '$1 ~ /^\/dev\/zram/ {s+=$4} END {print s+0}' "$PROC/swaps" 2>/dev/null)"
     [ "${zram_size:-0}" = 0 ] || zram=true
     temp="$(tenths "$(thermal_millideg)")"
-    temp_wifi="$(tenths "$(hwmon_millideg 'ath11k*' '*wlan*' '*wifi*' '*wcss*')")"
+    # Wi-Fi temperature: the radio's own PHY sensor first (closest to the PA),
+    # ath11k/wlan chips only as a fallback when wcss is absent.
+    temp_wifi="$(hwmon_millideg '*wcss*')"
+    [ -n "$temp_wifi" ] || temp_wifi="$(hwmon_millideg 'ath11k*' '*wlan*' '*wifi*')"
+    temp_wifi="$(tenths "$temp_wifi")"
     temp_ddr="$(tenths "$(hwmon_millideg '*ddrss*' '*ddr*')")"
     for pid in $(pidof clash clash_meta mihomo daed dae 2>/dev/null | tr ' ' '\n' | sort -u); do
         case "$pid" in ''|*[!0-9]*) continue ;; esac
