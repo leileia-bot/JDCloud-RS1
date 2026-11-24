@@ -130,6 +130,7 @@ jobs:
           cd ./wrt/
           WRT_HASH=$(git rev-parse HEAD)
           echo "WRT_HASH=$WRT_HASH" >> $GITHUB_ENV
+          echo "WRT_HASH_SHORT=${WRT_HASH:0:8}" >> $GITHUB_ENV
           echo "WRT_CACHE_KEY=$WRT_CACHE_PREFIX-$WRT_HASH" >> $GITHUB_ENV
           echo "cache_key=$WRT_CACHE_PREFIX-$WRT_HASH" >> "$GITHUB_OUTPUT"
 
@@ -287,27 +288,11 @@ jobs:
           tag_name: ${{env.WRT_CONFIG}}-${{env.WRT_INFO}}-${{env.WRT_BRANCH}}-${{env.WRT_DATE}}
           files: ./wrt/upload/*.*
           body: |
-            这是个平台固件包，内含多个设备！
-            请注意选择你需要的设备固件！
-            不要问，刷就完事了！
+            刷机前提：仅适用于京东云亚瑟 AX1800 Pro（ss-01），12M内核＋1G RAM＋2G大分区
 
-            全系带开源硬件加速，别问了！
-
-            源码：${{env.WRT_REPO}}
-            分支：${{env.WRT_BRANCH}}
-            提交：${{env.WRT_HASH}}
-
-            配置：${{env.WRT_CONFIG}}
-            平台：${{env.WRT_TARGET}}
-
-            登录地址：${{env.WRT_IP}}
-            登录密码：${{env.WRT_PW}}
-
-            WIFI名称：${{env.WRT_SSID}}
-            WIFI密码：${{env.WRT_WORD}}
-
-            内核版本：${{env.WRT_KVER}}
-            插件列表：${{env.WRT_LIST}}
+            配置：${{env.WRT_CONFIG}}（${{env.WRT_TARGET}}-${{env.WRT_SUBTARGET}}）
+            内核：${{env.WRT_KVER}}
+            源码：${{env.WRT_REPO}} @ ${{env.WRT_BRANCH}}（${{env.WRT_HASH_SHORT}}）
 
   cache-rollover:
     name: Roll cache generations

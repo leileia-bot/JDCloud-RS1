@@ -4,4 +4,12 @@
 uci -q get luci.main >/dev/null 2>&1 || uci -q set luci.main=core
 uci -q set luci.main.mediaurlbase='/luci-static/argon' || exit 0
 uci -q commit luci
+
+# 预置 Argon 主色：亮/暗都强制写侧栏藏青 #142131，顶部状态栏(theme-color)跟着走。
+# 交互高亮仍由皮肤 CSS 的 --primary 负责，所以这里只管“外壳色”。
+[ -f /etc/config/argon ] || touch /etc/config/argon
+uci -q get argon.@global[0] >/dev/null 2>&1 || uci -q add argon global >/dev/null 2>&1
+uci -q set argon.@global[0].primary='#142131'
+uci -q set argon.@global[0].dark_primary='#142131'
+uci -q commit argon
 exit 0

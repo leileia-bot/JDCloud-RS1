@@ -108,7 +108,12 @@ def main(source, project, build_id):
         (assets / 'favicon.svg').write_text(icon, encoding='utf-8')
 
     # 3. 注入 head：样式、浅色基线、图标与身份脚本
+    # 状态概览：LuCI 把折叠状态存在 localStorage（值 'hide'），被记为隐藏的区块
+    # 连内容都不渲染，CSS 压不开。进页面时先清掉这些 'hide' 键，再交给 CSS 强制展开。
     block = (
+        '<script>try{if(location.pathname.indexOf("/admin/status")>=0){'
+        'Object.keys(localStorage).forEach(function(k){'
+        'if(localStorage.getItem(k)==="hide")localStorage.removeItem(k)})}}catch(e){}</script>\n'
         '<script>try{document.documentElement.dataset.arthurTheme='
         'localStorage.getItem("arthur-theme") === "dark" ? "dark" : "light"}catch(e){}</script>\n'
         f'<link rel="stylesheet" href="/luci-static/arthur/theme.css?v={build_id}">\n'

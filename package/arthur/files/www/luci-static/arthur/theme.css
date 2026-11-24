@@ -47,3 +47,46 @@ body .main-left .nav>li>a{--arthur-nav-icon:url("data:image/svg+xml,%3Csvg%20xml
 
 
 .arthur-brand-copy{display:flex;flex-direction:column;gap:5px;min-width:0}.arthur-brand-copy strong{font:inherit;color:inherit;white-space:nowrap}.arthur-brand-copy small{font:500 10px/1.2 var(--font-family-sans-serif);letter-spacing:1.4px;color:#a8bfdd}.arthur-login .arthur-brand-copy small{color:#d5e8ff;font-size:11px;letter-spacing:2px}.arthur-side-footer .arthur-version{display:block;color:#b2cbed;font-size:11px;margin:5px 0 8px;text-decoration:none}.arthur-side-footer .arthur-version:hover{color:#fff}.arthur-login-footer{text-align:center;line-height:1.9}.arthur-login-footer b{color:var(--arthur-text);font-weight:600}
+
+/* ========== 状态概览：竖列彩色卡片 + 按占用率横向填充 ========== */
+body[data-page="admin-status-overview"] .cbi-progressbar-grid{display:grid;grid-template-columns:1fr;gap:8px;padding:8px 0 4px}
+body[data-page="admin-status-overview"] .cbi-progressbar-item{position:relative;overflow:hidden;display:block;padding:8px 54px 8px 14px;min-width:0;box-sizing:border-box;border:1px solid rgba(127,127,127,.2);border-radius:12px;background:rgba(127,127,127,.05);box-shadow:inset 3px 0 0 rgba(var(--accent),.55)}
+body[data-page="admin-status-overview"] .cbi-progressbar{position:absolute!important;inset:0;width:auto;height:auto;margin:0;border:none;border-radius:inherit;background:linear-gradient(90deg,rgba(var(--accent),.18) 0%,rgba(var(--accent),.18) var(--progress,0%),rgba(0,0,0,0) var(--progress,0%),rgba(0,0,0,0) 100%)}
+body[data-page="admin-status-overview"] .cbi-progressbar::before{display:none!important}
+body[data-page="admin-status-overview"] .cbi-progressbar::after{content:none!important}
+body[data-page="admin-status-overview"] .cbi-progressbar>div{position:absolute!important;left:auto!important;right:14px!important;top:50%;transform:translateY(-50%);width:auto!important;height:auto!important;padding:0;display:block;text-align:right;background:none!important;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;color:rgb(var(--accent))}
+body[data-page="admin-status-overview"] .cbi-progressbar-label{position:relative;z-index:1;margin:0;text-align:left;font-size:12.5px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body[data-page="admin-status-overview"] .cbi-progressbar-data{position:relative;z-index:1;margin:2px 0 0;text-align:left;font-size:10.5px;opacity:.6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body[data-page="admin-status-overview"] .cbi-progressbar-item:nth-child(1){--accent:94,114,228}
+body[data-page="admin-status-overview"] .cbi-progressbar-item:nth-child(2){--accent:245,158,11}
+body[data-page="admin-status-overview"] .cbi-progressbar-item:nth-child(3){--accent:16,185,129}
+body[data-page="admin-status-overview"] .cbi-progressbar-item:nth-child(4){--accent:139,92,246}
+body[data-page="admin-status-overview"] .cbi-progressbar-item:nth-child(5){--accent:100,116,139}
+
+/* 侧栏图标：按行高垂直居中 */
+body .main-left .nav>li>a:first-child::before{top:50%!important;margin-top:-9px;padding-top:0!important;display:block;width:18px;height:18px;line-height:1}
+
+/* ========== 状态概览：区块强制展开 + 两列网格排布 ========== */
+/* 真机 DOM 顺序（nth-of-type）：1 系统 / 2 内存 / 3 存储 / 4 端口状态 / 5 网络 / 6 DHCP 租约 / 7 无线
+   排布：系统通栏 → 内存|存储 → 端口通栏 → 网络通栏 → DHCP 通栏 → 无线通栏
+   只用 grid-column 起止控制跨列，不写死行号，行序跟着 DOM 顺序自动落位，避免重排翻车 */
+body[data-page="admin-status-overview"] *:has(> .cbi-section){display:grid!important;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+body[data-page="admin-status-overview"] .cbi-section{display:block!important;min-width:0;margin:0!important;padding:12px 14px;box-sizing:border-box}
+body[data-page="admin-status-overview"] .cbi-title span.label{display:none!important}
+body[data-page="admin-status-overview"] .cbi-section:nth-of-type(1){grid-column:1/-1}
+body[data-page="admin-status-overview"] .cbi-section:nth-of-type(2){grid-column:1/2}
+body[data-page="admin-status-overview"] .cbi-section:nth-of-type(3){grid-column:2/3}
+body[data-page="admin-status-overview"] .cbi-section:nth-of-type(4){grid-column:1/-1}
+body[data-page="admin-status-overview"] .cbi-section:nth-of-type(5){grid-column:1/-1}
+body[data-page="admin-status-overview"] .cbi-section:nth-of-type(6){grid-column:1/-1}
+body[data-page="admin-status-overview"] .cbi-section:nth-of-type(7){grid-column:1/-1}
+/* 手机端不降列：用户全程手机操作，两列在 1080 宽下每列约 330px，内存/存储小卡仍够用 */
+
+/* ========== 状态概览·无线：radio0 | radio1 并排 ========== */
+/* 真机结构（status/include/60_wifi.js）：div.cbi-section > div.network-status-table(内含 N 个 div.ifacebox) + h3 + table.assoclist
+   所以两列只给 network-status-table，绝不给它的子元素加 grid-column——
+   子元素一旦被强制通栏，就会退化成"一个 radio 占一整行"，看着跟没改一样 */
+body[data-page="admin-status-overview"] .cbi-section:has(.network-status-table) .network-status-table{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:start}
+body[data-page="admin-status-overview"] .cbi-section:has(.network-status-table) .ifacebox{min-width:0;width:auto!important;float:none!important;margin:0!important}
+/* 已连接站点：手机上 5 列必然溢出，改成横向可滚，别把整页撑破 */
+body[data-page="admin-status-overview"] .cbi-section:has(.network-status-table) table.assoclist{display:block!important;width:100%;overflow-x:auto;white-space:nowrap}
