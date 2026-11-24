@@ -83,5 +83,22 @@ return baseclass.extend({
         footer.appendChild(E('span', {}, '京东云亚瑟 · AX1800 Pro'));
         footer.appendChild(E('span', {}, [E('i', {'class': 'arthur-dot'}), '管理会话已连接']));
         sidebar.appendChild(footer);
+        var closeBtn = E('button', {type: 'button', 'class': 'arthur-drawer-close', 'aria-label': '收起导航菜单', title: '收起导航菜单'}, [
+            E('svg', {viewBox: '0 0 24 24', 'aria-hidden': 'true', width: '18', height: '18'}, [
+                E('path', {d: 'M19 12H6M11 6L5 12l6 6', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.8', 'stroke-linecap': 'round', 'stroke-linejoin': 'round'})
+            ])
+        ]);
+        closeBtn.addEventListener('click', function() {
+            var drawer = document.querySelector('.main-left');
+            if (drawer) {
+                drawer.classList.remove('active');
+                drawer.classList.remove('show');
+            }
+            document.querySelectorAll('a.showSide.active').forEach(function(node) { node.classList.remove('active'); });
+            var mask = document.querySelector('.darkMask');
+            if (mask) mask.classList.remove('active');
+            document.body.classList.remove('showSide');
+        });
+        sidebar.insertBefore(closeBtn, sidebar.firstChild);
     }
 });

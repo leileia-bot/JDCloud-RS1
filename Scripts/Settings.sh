@@ -18,6 +18,12 @@ for file in "$ROUTER_TOOL" "$WIFI_UC"; do
 	[ -f "$file" ] && sed -i "s/ssid '.*'/ssid '$WRT_SSID'/g; s/key '.*'/key '$WRT_WORD'/g" "$file"
 done
 
+#双频合一：默认SSID去掉频段后缀（✈-5.2G / ✈-2.4G → ✈），并给AP开802.11k/v便于客户端选频
+if [ -f "$WIFI_UC" ]; then
+	sed -i "s/return substr(hostname, 0, size) + '-' + suffix;/return substr(hostname, 0, size);/" "$WIFI_UC"
+	sed -i "s/ieee80211w: sae ? '2' : null,/ieee80211w: sae ? '2' : null, ieee80211k: '1', ieee80211v: '1',/" "$WIFI_UC"
+fi
+
 CFG_FILE="./package/base-files/files/bin/config_generate"
 #修改默认IP地址
 sed -i "s/192\.168\.[0-9]*\.[0-9]*/$WRT_IP/g" $CFG_FILE
