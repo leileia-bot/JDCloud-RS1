@@ -1,0 +1,33 @@
+#!/bin/sh
+# 首启兜底：强制启用所有无线 radio，并保证至少一个 AP（✈ / 12345678）
+# 目的：即使 wifi-scripts 生成的 /etc/config/wireless 默认 disabled=1，也能开机出 SSID
+logger -t wifi-default "start"
+
+[ -f /etc/config/wireless ] || wifi config >/dev/null 2>&1 || true
+
+devs=$(uci -q show wireless | sed -n "s/^wireless\.\([^.=]*\)=wifi-device$/\1/p")
+[ -n "$devs" ] || { logger -t wifi-default "no wifi-device found"; exit 0; }
+
+i=0
+for d in $devs; do
+	uci set wireless.$d.disabled='0'
+
+	n=$(uci -q show wireless | grep -o "wireless\.[^.]*\.device='$d'" | head -n1 | cut -d. -f2)
+	if [ -z "$n" ]; then
+		n="default_$d"
+		uci set wireless.$n=wifi-iface
+		uci set wireless.$n.device="$d"
+		uci set wireless.$n.mode='ap'
+		uci set wireless.$n.network='lan'
+		uci set wireless.$n.ssid='✈'
+		uci set wireless.$n.encryption='psk2'
+		uci set wireless.$n.key='12345678'
+	fi
+	uci set wireless.$n.disabled='0'
+	i=$((i+1))
+done
+
+uci commit wireless
+logger -t wifi-default "radios=$devs ifaces=$i"
+wifi reload >/dev/null 2>&1 || wifi up >/dev/null 2>&1 || true
+exit 0
