@@ -1,10 +1,11 @@
 #!/bin/sh
 #
-# JDRS A 方案：首次启动把 overlay 所在 eMMC 分区在末尾扩满
-# 原则：只做"把最后一段分区扩到磁盘末尾"，任何一步不满足就安静退出，不动数据
+# JDRS：首启把 overlay 所在分区向"紧邻的空洞"扩满（保守）
+# 若 overlay 分区后面紧跟着别的分区，则不动作，只把分区表 dump 到 /www 供查看
 #
 
-LOG=/tmp/jdrs-grow.log
+LOG=/www/jdrs-grow.log
+mkdir -p /www 2>/dev/null
 exec >>"$LOG" 2>&1
 echo "[grow] start $(date)"
 
@@ -12,41 +13,59 @@ ov=$(awk '$2=="/overlay"{print $1}' /proc/mounts | head -n1)
 [ -n "$ov" ] || { echo "[grow] no /overlay mount, skip"; exit 0; }
 echo "[grow] overlay dev: $ov"
 
+before=$(df -k /overlay 2>/dev/null | awk 'NR==2{print $2}')
+echo "[grow] overlay size(K): ${before:-?}"
+
 case "$ov" in
 	/dev/mmcblk*p*) disk=${ov%p*}; part=${ov##*p} ;;
-	*) echo "[grow] not eMMC ($ov), skip"; exit 0 ;;
+	/dev/nvme*p*) disk=${ov%p*}; part=${ov##*p} ;;
+	*) echo "[grow] not emmc/nvme ($ov), skip"; exit 0 ;;
 esac
 
 [ -b "$disk" ] || { echo "[grow] no $disk, skip"; exit 0; }
 command -v parted >/dev/null 2>&1 || { echo "[grow] parted missing, skip"; exit 0; }
 
-lastpart=$(parted -m -s "$disk" unit s print 2>/dev/null |
-	awk -F: 'NR>2 && $1 ~ /^[0-9]+$/ {n=$1} END{print n}')
-echo "[grow] disk=$disk part=$part last=$lastpart"
-[ "$lastpart" = "$part" ] || { echo "[grow] $part is not the last partition, skip"; exit 0; }
-
 fstype=$(blkid -s TYPE -o value "$ov" 2>/dev/null)
-echo "[grow] fs=$fstype"
+echo "[grow] disk=$disk part=$part fs=$fstype"
 
-before=$(df -k /overlay 2>/dev/null | awk 'NR==2{print $2}')
-echo "[grow] size before: ${before}K"
+echo "[grow] --- partition table ---"
+parted -s "$disk" unit s print 2>&1
+echo "[grow] --- free space ---"
+parted -m -s "$disk" unit s print free 2>&1
+
+# overlay 分区的结束扇区 + 紧随其后的空洞
+line=$(parted -m -s "$disk" unit s print 2>/dev/null | awk -F: -v p="$part" '$1==p {print; exit}')
+pend=$(echo "$line" | awk -F: '{print $3+0}')
+[ -n "$pend" ] || { echo "[grow] cannot read end sector of part $part, skip"; exit 0; }
+
+freeend=$(parted -m -s "$disk" unit s print free 2>/dev/null |
+	awk -F: -v s="$((pend+1))" '
+		$5=="free;" && $2+0 <= s && s <= $3+0 { print $3+0; exit }')
+if [ -z "$freeend" ]; then
+	echo "[grow] no free space right after partition $part -> cannot grow"
+	echo "[grow] (需要换分区布局：uboot/B方案，见 README)"
+	exit 0
+fi
+
+echo "[grow] part $part end=$pend, free region ends at $freeend"
+[ "$freeend" -gt "$pend" ] || { echo "[grow] nothing to gain, skip"; exit 0; }
 
 case "$fstype" in
 	ext2|ext3|ext4)
 		e2fsck -p -f "$ov" >/dev/null 2>&1
-		parted -s "$disk" unit s resizepart "$part" 100% || {
+		parted -s "$disk" unit s resizepart "$part" "$freeend" || {
 			echo "[grow] parted resizepart failed, skip"; exit 0; }
 		partx -u "$disk" >/dev/null 2>&1
 		resize2fs "$ov" || { echo "[grow] resize2fs failed"; exit 0; }
 		;;
-	f2fs)
-		echo "[grow] f2fs overlay: online grow unsupported, skip"; exit 0 ;;
 	*)
-		echo "[grow] unsupported fs, skip"; exit 0 ;;
+		echo "[grow] fs=$fstype not supported for online grow, skip"; exit 0 ;;
 esac
 
 sync
 after=$(df -k /overlay 2>/dev/null | awk 'NR==2{print $2}')
-echo "[grow] size after: ${after}K"
-[ "${after:-0}" -gt "${before:-0}" ] && echo "[grow] OK, grew"
+echo "[grow] overlay size(K) after: ${after:-?}"
+[ "${after:-0}" -gt "${before:-0}" ] && echo "[grow] OK, overlay grew"
+echo "[grow] --- new table ---"
+parted -s "$disk" unit s print 2>&1
 exit 0
