@@ -149,14 +149,7 @@ jobs:
           echo "--- kernel size check ---"
           BIN=$(ls upload/*sysupgrade*.bin 2>/dev/null | head -1)
           if [ -n "$BIN" ]; then
-            python3 - "$BIN" <<'PY'
-import sys, re
-d = open(sys.argv[1], 'rb').read()
-m = re.search(b'hsqs', d)
-print('image bytes:', len(d))
-if m:
-    print('rootfs offset:', m.start(), '(%.2f MiB)' % (m.start()/1048576))
-PY
+            python3 -c "import sys,re;d=open(sys.argv[1],'rb').read();m=re.search(b'hsqs',d);print('image bytes:',len(d));print('rootfs offset:',m.start(),'(%.2f MiB)'%(m.start()/1048576)) if m else print('no squashfs magic')" "$BIN"
           fi
 
       - name: Release
@@ -166,7 +159,7 @@ PY
           files: ./wrt/upload/*
           body: |
             自用精简固件（无 NSS，含 eBPF/BTF）
-            源码：${{env.WRT_SOURCE}} @ ${{env.WRT_BRANCH }} (${{env.WRT_HASH}})
+            源码：${{env.WRT_SOURCE}}@${{env.WRT_BRANCH}} ${{env.WRT_HASH}}
             登录：${{env.WRT_IP}}
             WiFi：${{env.WRT_SSID}} / ${{env.WRT_WORD}}
             内核槽：12288k
