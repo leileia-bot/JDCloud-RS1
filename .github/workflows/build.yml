@@ -71,6 +71,12 @@ jobs:
       - name: Update Feeds
         run: |
           cd ./wrt/
+          # 去掉 video feed：官方快照的 video 索引长期截断，会导致固件里 apk update 报错
+          sed -i '/^src-git video /d' feeds.conf.default
+          # 插件源码源（同树编译，产出 apk 与本固件内核匹配）
+          grep -q 'openwrt-daede' feeds.conf.default || echo "src-git daede https://github.com/kenzok8/openwrt-daede.git^main" >> feeds.conf.default
+          grep -q 'vernesong/OpenClash' feeds.conf.default || echo "src-git openclash https://github.com/vernesong/OpenClash.git^master" >> feeds.conf.default
+          cat feeds.conf.default
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
@@ -95,7 +101,9 @@ jobs:
           # 默认 WiFi 名称/密码（兜底脚本之外再设一次）
           WIFI_UC="./package/network/config/wifi-scripts/files/lib/wifi/mac80211.uc"
           if [ -f "$WIFI_UC" ]; then
-            sed -i "s/ssid: '[^']*'/ssid: '$WRT_SSID'/; s/key: '[^']*'/key: '$WRT_WORD'/" "$WIFI_UC"
+            sed -i "s/|| \"ImmortalWrt\"/|| \"$WRT_SSID\"/; s/|| \"\"/|| \"$WRT_WORD\"/" "$WIFI_UC"
+            echo "--- wifi defaults ---"
+            grep -nE "ssid=|key=" "$WIFI_UC" | head -5
           fi
 
           # 硬改 12M 内核槽

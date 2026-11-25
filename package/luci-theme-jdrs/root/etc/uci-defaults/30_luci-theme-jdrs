@@ -1,0 +1,28 @@
+#!/bin/sh
+
+# JDRS Aero: 注册主题，如当前仍是默认 Bootstrap 则自动切换
+
+changed=0
+
+set_opt() {
+	local key=$1
+	local val=$2
+
+	if [ "$(uci -q get "luci.$key")" != "$val" ]; then
+		uci set "luci.$key=$val"
+		changed=1
+	fi
+}
+
+set_opt themes.JDRS /luci-static/jdrs
+
+cur="$(uci -q get luci.main.mediaurlbase)"
+
+if [ "$PKG_UPGRADE" != 1 ] && { [ -z "$cur" ] || [ "$cur" = "/luci-static/bootstrap" ] || [ "$cur" = "/luci-static/bootstrap-light" ] || [ "$cur" = "/luci-static/bootstrap-dark" ]; }; then
+	uci set luci.main.mediaurlbase=/luci-static/jdrs
+	changed=1
+fi
+
+[ "$changed" = 1 ] && uci commit luci
+
+exit 0
