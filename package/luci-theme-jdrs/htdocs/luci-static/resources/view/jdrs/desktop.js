@@ -72,6 +72,17 @@ function tintStyle(group) {
 	return 'background:linear-gradient(155deg,' + t[0] + ',' + t[1] + ')';
 }
 
+function lookupIcon(key) {
+	var k = key;
+	while (k.length > 'admin/'.length) {
+		if (D.menu[k]) return D.menu[k];
+		var i = k.lastIndexOf('/');
+		if (i <= 'admin/'.length) break;
+		k = k.slice(0, i);
+	}
+	return D.menu['admin/' + k.split('/')[1]] || { i: 'service', g: 'services' };
+}
+
 function childKeys(node) {
 	var out = [];
 	Array.prototype.forEach.call(node.children, function(el) {
@@ -367,19 +378,24 @@ return view.extend({
 			node.querySelector('s').style.width = (p || 0) + '%';
 		};
 
-		var readTemp = function() {
+		var readTemp = function(cb) {
 			var zones = ['/sys/class/thermal/thermal_zone0/temp',
 				'/sys/class/thermal/thermal_zone1/temp',
 				'/sys/class/thermal/thermal_zone2/temp'];
-			for (var i = 0; i < zones.length; i++) {
-				try {
-					var v = parseInt(fs.read(zones[i]).trim(), 10);
-					if (v > 0) return Math.round(v > 1000 ? v / 1000 : v);
-				}
-				catch (e) {}
-			}
-			return null;
+			var i = 0;
+			var next = function() {
+				if (i >= zones.length) return cb(null);
+				fs.read(zones[i++]).then(function(raw) {
+					var v = parseInt((raw || '').trim(), 10);
+					if (v > 0) return cb(Math.round(v > 1000 ? v / 1000 : v));
+					next();
+				}).catch(function() { next(); });
+			};
+			next();
 		};
+
+		var rpcOnline = L.rpc.declare({ object: 'luci', method: 'getOnlineUsers' });
+		var rpcWifi = L.rpc.declare({ object: 'luci-rpc', method: 'getWirelessClients' });
 
 		this.refreshStats = function() {
 			var st = self.refs;
@@ -415,13 +431,14 @@ return view.extend({
 				}
 			}).catch(function() {});
 
-			var t = readTemp();
-			if (t != null) {
-				st.sbTemp.textContent = t + '°';
-				st.ccTemp.lastChild.textContent = t + ' °C';
-			}
+			readTemp(function(t) {
+				if (t != null) {
+					st.sbTemp.textContent = t + '°';
+					st.ccTemp.lastChild.textContent = t + ' °C';
+				}
+			});
 
-			L.rpc.declare({ object: 'luci', method: 'getOnlineUsers' })().then(function(r) {
+			rpcOnline().then(function(r) {
 				var n = (r && typeof r.onlineusers == 'number') ? r.onlineusers : null;
 				if (n != null) {
 					st.sbOn.textContent = '在线 ' + n;
@@ -429,7 +446,7 @@ return view.extend({
 				}
 			}).catch(function() {});
 
-			L.rpc.declare({ object: 'luci-rpc', method: 'getWirelessClients' })().then(function(hosts) {
+			rpcWifi().then(function(hosts) {
 				if (hosts && typeof hosts == 'object' && Object.keys(hosts).length) {
 					var n = Object.keys(hosts).length;
 					if (n > (self.online || 0)) {
@@ -471,7 +488,12 @@ return view.extend({
 					var code = cur.weather_code;
 					var emo = code == 0 ? '☀️' : (code <= 3 ? '⛅' : (code <= 48 ? '🌫' : (code <= 67 ? '🌧' : (code <= 77 ? '❄️' : (code <= 82 ? '🌦' : '⛈')))));
 					var city = (g.city || g.region || '').replace(/ (City|Province|Municipality)$/, '');
-					var h = '<b>' + t + '° ' + emo + '</b><i>' + (city || '当地天气') + '</i>';
+					var esc = function(v) {
+						return String(v).replace(/[&<>"']/g, function(c) {
+							return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+						});
+					};
+					var h = '<b>' + t + '° ' + emo + '</b><i>' + (city ? esc(city) : '当地天气') + '</i>';
 					wxChip.innerHTML = h;
 					wxChip.style.display = '';
 					try { localStorage.setItem('jdrs.wx.v2', JSON.stringify({ t: Date.now(), h: h })); } catch (e) {}
@@ -795,23 +817,30 @@ return view.extend({
 
 		container.addEventListener('pointerup', end);
 		container.addEventListener('pointercancel', end);
+		document.addEventListener('pointerup', function() {
+			if (timer) { clearTimeout(timer); timer = null; }
+		}, true);
 	},
 
 	/* ---------- 菜单收集 ---------- */
 
 	collect: function(tree) {
 		var out = [];
+		var seen = {};
 		var secs = ui.menu.getChildren(tree);
 
 		var push = function(node, secName) {
 			var path = (node.action && node.action.path) ? node.action.path : (secName + '/' + node.name);
 			var key = 'admin/' + path;
-			var ic = D.menu[key] || D.menu['admin/' + secName] || 'service';
+			if (seen[key]) return;
+			seen[key] = 1;
+			var hit = lookupIcon(key);
+			var ic = hit.i || hit;
 			out.push({
 				key: key,
 				title: _(node.title || node.name),
 				icon: ic,
-				group: D.groups[ic] || 'services',
+				group: hit.g || D.groups[ic] || 'services',
 				url: L.url('admin', path)
 			});
 		};
@@ -887,6 +916,7 @@ return view.extend({
 		this.closeCC();
 		this.drawer.classList.add('open');
 		this.scrim.classList.add('open');
+		this.home.classList.add('dim');
 		this.home.classList.add('dim');
 		if (navigator.vibrate) navigator.vibrate(8);
 	},
