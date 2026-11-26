@@ -20,13 +20,20 @@ var LS_DOCK = 'jdrs.dock.v1';
 var LS_HIDE = 'jdrs.hide.v1';
 var DOCK_MAX = 4;
 
-var TINTS = {
-	status:   ['#4FB3FF', '#1B7FD6'],
-	network:  ['#54E0B4', '#1E9E77'],
-	services: ['#A98BFF', '#6A4FD8'],
-	system:   ['#FFC05A', '#D98614'],
-	unknown:  ['#8FA6C4', '#4E6478']
-};
+/* 每个应用一个自己的颜色：用路径做哈希，同一应用每次刷新、每次登录都是同一个色，
+   不同应用之间尽量拉开色相，避免整屏一个颜色 */
+function tintIndex(seed) {
+	var s = String(seed || ''), h = 0;
+	for (var i = 0; i < s.length; i++)
+		h = (h * 31 + s.charCodeAt(i)) >>> 0;
+	return h % 360;
+}
+
+function tintStyle(seed) {
+	var h = tintIndex(seed);
+	/* 相邻色相 ±16 做渐变，明度压低一点保证白图标可读 */
+	return 'background:linear-gradient(155deg,hsl(' + h + ',70%,64%),hsl(' + ((h + 344) % 360) + ',66%,46%))';
+}
 
 var WEEK = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
 
@@ -67,10 +74,6 @@ function pad2(n) {
 	return (n < 10 ? '0' : '') + n;
 }
 
-function tintStyle(group) {
-	var t = TINTS[group] || TINTS.unknown;
-	return 'background:linear-gradient(155deg,' + t[0] + ',' + t[1] + ')';
-}
 
 function lookupIcon(key) {
 	var k = key;
@@ -269,7 +272,7 @@ return view.extend({
 			if (!self.byKey['admin/' + q.path])
 				return;
 			var ic = make('d-ccic', iconSvg(q.ic));
-			ic.setAttribute('style', tintStyle(q.g));
+			ic.setAttribute('style', tintStyle(q.path));
 			var t = make('d-ccq');
 			t.appendChild(ic);
 			t.appendChild(make('d-cctx', q.tx));
@@ -574,7 +577,7 @@ return view.extend({
 		tile.setAttribute('data-key', it.key);
 
 		var ic = make('d-ic', iconSvg(it.icon));
-		ic.setAttribute('style', tintStyle(it.group));
+		ic.setAttribute('style', tintStyle(it.key));
 		tile.appendChild(ic);
 		tile.appendChild(make('d-tx', it.title));
 
@@ -685,7 +688,7 @@ return view.extend({
 			if (!it) return;
 			var row = make('d-hrow');
 			var ic = make('d-hic', iconSvg(it.icon));
-			ic.setAttribute('style', tintStyle(it.group));
+			ic.setAttribute('style', tintStyle(it.key));
 			row.appendChild(ic);
 			row.appendChild(make('d-htx', it.title));
 			row.appendChild(make('d-flex'));
