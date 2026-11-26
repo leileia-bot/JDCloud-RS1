@@ -939,3 +939,335 @@ body.jdrs-login #modal_overlay .modal.login {
 }
 .jdrs-desk .d-hic svg { width: 18px; height: 18px; }
 .jdrs-desk .d-htx { font-size: 13px; color: #efe8ff; }
+
+/* ===== JDRS v1.7（状态条 / 小组件 / 内存条 / 控制中心 / 手势条） ===== */
+
+.jdrs-desk .d-sb {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 14px 22px 0;
+	font-size: 12px;
+	color: rgba(239, 232, 255, 0.72);
+}
+.jdrs-desk .d-sb .sb-time {
+	font-variant-numeric: tabular-nums;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	color: rgba(246, 241, 255, 0.92);
+}
+.jdrs-desk .d-sb .sb-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 3px 9px;
+	border-radius: 11px;
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	background: rgba(255, 255, 255, 0.06);
+	font-size: 11px;
+	font-variant-numeric: tabular-nums;
+	color: rgba(239, 232, 255, 0.8);
+}
+
+/* 小组件：天气 / 运行时长 */
+.jdrs-desk .d-wx {
+	display: flex;
+	justify-content: center;
+	gap: 10px;
+	margin-top: 18px;
+	padding: 0 22px;
+}
+.jdrs-desk .d-wxchip {
+	min-width: 118px;
+	padding: 10px 14px;
+	border-radius: 16px;
+	border: 1px solid rgba(255, 255, 255, 0.10);
+	background: rgba(255, 255, 255, 0.055);
+	-webkit-backdrop-filter: blur(10px) saturate(130%);
+	backdrop-filter: blur(10px) saturate(130%);
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	text-align: center;
+	box-shadow: 0 10px 26px -18px rgba(0, 0, 0, 0.9);
+}
+.jdrs-desk .d-wxchip b {
+	font-size: 17px;
+	font-weight: 500;
+	color: #F6F1FF;
+	letter-spacing: 0.01em;
+}
+.jdrs-desk .d-wxchip i {
+	font-style: normal;
+	font-size: 10.5px;
+	color: rgba(239, 232, 255, 0.5);
+	letter-spacing: 0.06em;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* 内存 / 负载条 */
+.jdrs-desk .d-meters {
+	padding: 16px 26px 0;
+	display: flex;
+	flex-direction: column;
+	gap: 11px;
+}
+.jdrs-desk .d-meter .mh {
+	display: flex;
+	align-items: baseline;
+	margin-bottom: 5px;
+	font-size: 11px;
+	letter-spacing: 0.05em;
+}
+.jdrs-desk .d-meter .ml { color: rgba(239, 232, 255, 0.62); }
+.jdrs-desk .d-meter .mv {
+	margin-left: auto;
+	color: rgba(239, 232, 255, 0.5);
+	font-variant-numeric: tabular-nums;
+	font-size: 10.5px;
+}
+.jdrs-desk .d-meter .mt {
+	height: 5px;
+	border-radius: 3px;
+	background: rgba(255, 255, 255, 0.09);
+	overflow: hidden;
+}
+.jdrs-desk .d-meter .mt s {
+	display: block;
+	height: 100%;
+	width: 0;
+	border-radius: 3px;
+	background: linear-gradient(90deg, #6A4FD8, #4FB3FF);
+	transition: width 520ms cubic-bezier(.22,.72,.24,1);
+	text-decoration: none;
+}
+.jdrs-desk .d-meter:nth-child(2) .mt s { background: linear-gradient(90deg, #1E9E77, #54E0B4); }
+
+/* 底部手势条（iOS home indicator 的观感） */
+.jdrs-desk .d-homebar {
+	flex: 0 0 auto;
+	width: 128px;
+	height: 5px;
+	margin: 10px auto 8px;
+	border-radius: 3px;
+	background: rgba(255, 255, 255, 0.35);
+}
+
+/* dock 磨砂胶囊 */
+.jdrs-desk .d-dockwrap {
+	padding: 0 18px 14px;
+}
+.jdrs-desk .d-dockgrid {
+	display: flex;
+	justify-content: center;
+	gap: 24px;
+	padding: 12px 14px;
+	border-radius: 26px;
+	border: 1px solid rgba(255, 255, 255, 0.10);
+	background: rgba(255, 255, 255, 0.06);
+	-webkit-backdrop-filter: blur(16px) saturate(140%);
+	backdrop-filter: blur(16px) saturate(140%);
+	box-shadow: 0 18px 40px -26px rgba(0, 0, 0, 0.9);
+}
+.jdrs-desk .dock-empty { background: none; border: 1px dashed rgba(255,255,255,0.14); }
+
+/* 抽屉：4 列 + 入场动画 */
+.jdrs-desk .d-grid {
+	grid-template-columns: repeat(4, 1fr);
+	gap: 18px 4px;
+	padding: 12px 16px 40px;
+}
+.jdrs-desk .d-grid .d-tile.in {
+	animation: jdrs-in 340ms cubic-bezier(.22,.72,.24,1) both;
+}
+@keyframes jdrs-in {
+	from { opacity: 0; transform: translateY(10px) scale(0.94); }
+	to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.jdrs-desk .d-grid .d-tile .d-ic,
+.jdrs-desk .d-grid .d-tile .d-tx { width: 100%; }
+.jdrs-desk .d-grid .d-tile .d-tx { text-align: center; }
+
+/* 控制中心 */
+.jdrs-desk .d-cc {
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 0;
+	z-index: 7;
+	padding: 8px 20px 16px;
+	border-radius: 0 0 26px 26px;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+	background: rgba(19, 15, 32, 0.76);
+	-webkit-backdrop-filter: blur(26px) saturate(160%);
+	backdrop-filter: blur(26px) saturate(160%);
+	box-shadow: 0 24px 60px -26px rgba(0, 0, 0, 0.9);
+	transform: translateY(-102%);
+	transition: transform 360ms cubic-bezier(.22,.72,.24,1);
+}
+.jdrs-desk .d-cc.open { transform: translateY(0); }
+.jdrs-desk .d-cc.drag { transition: none; }
+.jdrs-desk .d-cchandle {
+	width: 40px;
+	height: 4px;
+	border-radius: 2px;
+	background: rgba(255, 255, 255, 0.24);
+	margin: 0 auto 8px;
+}
+.jdrs-desk .d-cchead {
+	display: flex;
+	align-items: center;
+	padding: 2px 2px 12px;
+}
+.jdrs-desk .d-cctitle { font-size: 14px; color: #efe8ff; letter-spacing: 0.02em; }
+.jdrs-desk .d-cchost {
+	font-size: 11px;
+	color: rgba(239, 232, 255, 0.5);
+	padding: 2px 8px;
+	border-radius: 9px;
+	border: 1px solid rgba(255, 255, 255, 0.10);
+	background: rgba(255, 255, 255, 0.05);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 46%;
+}
+.jdrs-desk .d-ccquick {
+	display: grid;
+	grid-template-columns: repeat(4, 1fr);
+	gap: 10px;
+}
+.jdrs-desk .d-ccq {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 7px;
+	padding: 6px 0 8px;
+	border-radius: 18px;
+	border: 1px solid rgba(255, 255, 255, 0.10);
+	background: rgba(255, 255, 255, 0.06);
+	transition: transform 160ms ease, background 160ms ease;
+}
+.jdrs-desk .d-ccq:active { transform: scale(0.94); background: rgba(255, 255, 255, 0.11); }
+.jdrs-desk .d-ccic {
+	width: 46px;
+	height: 46px;
+	border-radius: 14px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	box-shadow: 0 8px 20px -12px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+.jdrs-desk .d-ccic svg { width: 22px; height: 22px; display: block; }
+.jdrs-desk .d-cctx { font-size: 11px; color: rgba(239, 232, 255, 0.8); }
+.jdrs-desk .d-ccstats {
+	display: grid;
+	grid-template-columns: repeat(4, 1fr);
+	gap: 8px;
+	margin-top: 12px;
+}
+.jdrs-desk .d-ccs {
+	padding: 10px 8px;
+	border-radius: 14px;
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	background: rgba(255, 255, 255, 0.045);
+	text-align: center;
+	overflow: hidden;
+}
+.jdrs-desk .d-ccs i {
+	display: block;
+	font-style: normal;
+	font-size: 10px;
+	color: rgba(239, 232, 255, 0.48);
+	margin-bottom: 4px;
+	letter-spacing: 0.06em;
+}
+.jdrs-desk .d-ccs b {
+	display: block;
+	font-size: 12.5px;
+	font-weight: 500;
+	color: rgba(246, 241, 255, 0.92);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.jdrs-desk .d-cchint {
+	text-align: center;
+	margin-top: 10px;
+	font-size: 10.5px;
+	letter-spacing: 0.14em;
+	color: rgba(239, 232, 255, 0.35);
+}
+
+/* ===== JDRS v1.7 大屏适配（平板 / 桌面浏览器 ≥855px） ===== */
+@media only screen and (min-width: 855px) {
+	.jdrs-desk .d-home {
+		max-width: 430px;
+		margin: 0 auto;
+		left: 50%;
+		right: auto;
+		transform: translateX(-50%);
+		inset: 0 auto 0 auto;
+		padding: 8px 0;
+	}
+	.jdrs-desk .d-time,
+	.jdrs-desk .d-clock .h,
+	.jdrs-desk .d-clock .m { font-size: 74px; }
+	.jdrs-desk .d-sb { padding-top: 22px; }
+	.jdrs-desk .d-wxchip { min-width: 132px; }
+
+	.jdrs-desk .d-drawer {
+		left: 50%;
+		right: auto;
+		bottom: 24px;
+		top: auto;
+		width: 760px;
+		max-width: calc(100% - 80px);
+		max-height: 78vh;
+		height: auto;
+		transform: translate(-50%, 118%);
+		border-radius: 24px;
+		border: 1px solid rgba(255, 255, 255, 0.12);
+	}
+	.jdrs-desk .d-drawer.open { transform: translate(-50%, 0); }
+	.jdrs-desk .d-grid {
+		grid-template-columns: repeat(7, 1fr);
+		gap: 22px 6px;
+		padding: 16px 24px 34px;
+	}
+	.jdrs-desk .d-tile { width: 78px; }
+	.jdrs-desk .d-ic { width: 58px; height: 58px; border-radius: 17px; }
+	.jdrs-desk .d-ic svg { width: 27px; height: 27px; }
+	.jdrs-desk .d-tx { font-size: 11.5px; }
+
+	.jdrs-desk .d-cc {
+		left: 50%;
+		right: auto;
+		width: 520px;
+		transform: translate(-50%, -112%);
+		border-radius: 0 0 26px 26px;
+		transition: transform 360ms cubic-bezier(.22,.72,.24,1);
+	}
+	.jdrs-desk .d-cc.open { transform: translate(-50%, 0); }
+	.jdrs-desk .d-home.dim { transform: translateX(-50%) scale(0.96); }
+	.jdrs-desk .d-homebar { display: none; }
+	.jdrs-desk .d-hint { letter-spacing: 0.1em; }
+}
+
+/* 中等屏（竖屏平板 600–854px） */
+@media only screen and (min-width: 601px) and (max-width: 854px) {
+	.jdrs-desk .d-grid { grid-template-columns: repeat(5, 1fr); }
+	.jdrs-desk .d-clock .h,
+	.jdrs-desk .d-clock .m { font-size: 78px; }
+}
+
+/* v1.7 修正：抽屉图标保持方形，不要被格子拉宽 */
+.jdrs-desk .d-grid .d-tile { width: auto; }
+.jdrs-desk .d-grid .d-tile .d-ic { width: 54px; height: 54px; margin: 0 auto; border-radius: 16px; }
+.jdrs-desk .d-grid .d-tile .d-ic svg { width: 25px; height: 25px; }
+.jdrs-desk .d-grid .d-tile .d-tx { width: 100%; text-align: center; }
+.jdrs-desk .d-grid { gap: 20px 4px; }
+.jdrs-desk .d-ccs b { font-size: 12px; }

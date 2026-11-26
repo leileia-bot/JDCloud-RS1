@@ -3,11 +3,14 @@
 'require ui';
 'require poll';
 'require view.jdrs.data as D';
+'require fs';
 
 /*
- * JDRS 手机桌面 v1.6
- *   待机主页：大时钟 + 日期/在线数 + 底部四个常用图标（dock）
- *   上滑 → 磨砂抽屉：应用图标网格 + 搜索
+ * JDRS 手机桌面 v1.7
+ *   状态条：时间 / 温度 / 在线设备
+ *   待机主页：大时钟 + 日期 + 天气·运行时长小组件 + 内存条 + 底部四个常用图标（dock）
+ *   下拉 → 控制中心：快捷入口 + 温度/内存/在线/运行时长
+ *   上滑 → 磨砂抽屉：应用图标网格（4 列）+ 搜索
  *   整理：长按 520ms → 拖动排序 / 拖进 dock 换位 / ✕ 隐藏 / 已隐藏可恢复
  *   布局全部落 localStorage，刷新与重启都在
  */
@@ -38,6 +41,26 @@ function iconSvg(name) {
 	var body = D.icons[name] || '<rect x="5" y="5" width="14" height="14" rx="3"/>';
 	return '<svg viewBox="0 0 24 24" stroke="#fff" stroke-width="2" stroke-linecap="round" '
 		+ 'stroke-linejoin="round" fill="none">' + body + '</svg>';
+}
+
+function wideLayout() {
+	return window.innerWidth >= 855;
+}
+
+function ty(p) {
+	return wideLayout() ? 'translate(-50%, ' + p + ')' : 'translateY(' + p + ')';
+}
+
+function fmtUptime(sec) {
+	var d = Math.floor(sec / 86400), h = Math.floor(sec % 86400 / 3600), m = Math.floor(sec % 3600 / 60);
+	if (d > 0) return d + ' 天 ' + h + ' 小时';
+	if (h > 0) return h + ' 小时 ' + m + ' 分';
+	return m + ' 分钟';
+}
+
+function pct(used, total) {
+	if (!total) return 0;
+	return Math.min(100, Math.round(used / total * 100));
 }
 
 function pad2(n) {
@@ -163,32 +186,100 @@ return view.extend({
 		/* ---- 主页 ---- */
 		var home = make('d-home');
 
-		var top = make('d-top');
-		var host = make('d-host', (document.title.split('|')[0] || '').trim());
-		var pill = make('d-pill', '在线 0');
-		top.appendChild(host);
+		/* ---- 状态条（时间 · 温度 · 在线） ---- */
+		var top = make('d-sb');
+		var sbTime = make('sb-time', '--:--');
+		var sbTemp = make('sb-chip', '温度 --');
+		var sbOn = make('sb-chip', '在线 0');
+		top.appendChild(sbTime);
 		top.appendChild(make('d-flex'));
-		top.appendChild(pill);
+		top.appendChild(sbTemp);
+		top.appendChild(sbOn);
 
+		/* ---- 大时钟 ---- */
 		var clock = make('d-clock');
 		clock.innerHTML = '<span class="h">--</span><span class="m">--</span><span class="s">00</span>';
 
 		var dateRow = make('d-date', '--/--');
-		var infoRow = make('d-info', '');
+
+		/* ---- 小组件：天气 / 运行时长 ---- */
+		var wxRow = make('d-wx');
+		var wxChip = make('d-wxchip', '<b>--</b><i>天气加载中</i>');
+		var upChip = make('d-wxchip', '<b>--</b><i>运行时长</i>');
+		wxRow.appendChild(wxChip);
+		wxRow.appendChild(upChip);
+
+		/* ---- 内存条 ---- */
+		var meters = make('d-meters');
+		var memBar = make('d-meter', '<div class="mh"><span class="ml">内存</span><span class="mv">--</span></div>'
+			+ '<div class="mt"><s></s></div>');
+		var loadBar = make('d-meter', '<div class="mh"><span class="ml">负载</span><span class="mv">--</span></div>'
+			+ '<div class="mt"><s></s></div>');
+		meters.appendChild(memBar);
+		meters.appendChild(loadBar);
 
 		var dock = make('d-dockwrap');
 		var dockGrid = make('d-dockgrid');
 		dock.appendChild(dockGrid);
-		dock.appendChild(make('d-hint', '<span class="arw">︿</span>上滑打开应用 · 长按图标整理'));
+		dock.appendChild(make('d-hint', '<span class="arw">︿</span>上滑打开应用 · 下拉打开控制中心 · 长按整理'));
 
 		home.appendChild(top);
 		home.appendChild(make('d-flex'));
 		home.appendChild(clock);
 		home.appendChild(dateRow);
-		home.appendChild(infoRow);
+		home.appendChild(wxRow);
+		home.appendChild(meters);
 		home.appendChild(make('d-flex'));
 		home.appendChild(dock);
+		home.appendChild(make('d-homebar'));
 		root.appendChild(home);
+
+		/* ---- 控制中心 ---- */
+		var cc = make('d-cc');
+		cc.appendChild(make('d-cchandle'));
+
+		var ccHead = make('d-cchead');
+		var ccTitle = make('d-cctitle', '控制中心');
+		var ccHost = make('d-cchost', (document.title.split('|')[0] || '').trim());
+		ccHead.appendChild(ccTitle);
+		ccHead.appendChild(make('d-flex'));
+		ccHead.appendChild(ccHost);
+		cc.appendChild(ccHead);
+
+		var ccQuick = make('d-ccquick');
+		var quicks = [
+			{ ic: 'network', tx: '网络', g: 'network', path: 'network/network' },
+			{ ic: 'wireless', tx: '无线', g: 'network', path: 'network/wireless' },
+			{ ic: 'firewall', tx: '防火墙', g: 'network', path: 'network/firewall' },
+			{ ic: 'reboot', tx: '重启', g: 'system', path: 'system/reboot' }
+		];
+		quicks.forEach(function(q) {
+			/* 没装的插件就不出现在控制中心：桌面只长固件里真有的东西 */
+			if (!self.byKey['admin/' + q.path])
+				return;
+			var ic = make('d-ccic', iconSvg(q.ic));
+			ic.setAttribute('style', tintStyle(q.g));
+			var t = make('d-ccq');
+			t.appendChild(ic);
+			t.appendChild(make('d-cctx', q.tx));
+			t.addEventListener('click', function() {
+				if (q.ic == 'reboot' && !confirm('重启路由器？')) return;
+				location.href = L.url('admin', q.path);
+			});
+			ccQuick.appendChild(t);
+		});
+		cc.appendChild(ccQuick);
+
+		var ccStats = make('d-ccstats');
+		var ccTemp = make('d-ccs', '<i>温度</i><b>--</b>');
+		var ccMem = make('d-ccs', '<i>内存</i><b>--</b>');
+		var ccLoad = make('d-ccs', '<i>负载</i><b>--</b>');
+		var ccUp = make('d-ccs', '<i>运行</i><b>--</b>');
+		[ccTemp, ccMem, ccLoad, ccUp].forEach(function(n) { ccStats.appendChild(n); });
+		cc.appendChild(ccStats);
+		cc.appendChild(make('d-cchint', '上滑收起'));
+
+		root.appendChild(cc);
 
 		/* ---- 抽屉 ---- */
 		var drawer = make('d-drawer');
@@ -239,6 +330,8 @@ return view.extend({
 		this.resetBtn = dreset;
 		this.hpane = hpane;
 		this.searchBox = search;
+		this.cc = cc;
+		this.homeBar = root.querySelector('.d-homebar');
 
 		this.refreshHiddenBtn();
 		this.renderDock();
@@ -256,26 +349,140 @@ return view.extend({
 			clock.children[0].textContent = d.getHours();
 			clock.children[1].textContent = pad2(d.getMinutes());
 			clock.children[2].textContent = pad2(d.getSeconds());
+			sbTime.textContent = pad2(d.getHours()) + ':' + pad2(d.getMinutes());
 			dateRow.textContent = '%s/%s  %s'.format(pad2(d.getMonth() + 1), pad2(d.getDate()), WEEK[d.getDay()]);
 		};
 		tick();
-		poll.add(tick, 30);
+		poll.add(tick, 20);
 
-		/* ---- 负载 / 在线设备 ---- */
-		L.rpc.declare({ object: 'luci', method: 'getHostUsage' })().then(function(load) {
-			if (Array.isArray(load) && load.length)
-				infoRow.textContent = '负载 ' + load.join(' · ');
-		}).catch(function() {});
+		/* ---- 状态采集：温度 / 内存 / 负载 / 运行时长 / 在线 ---- */
+		this.refs = {
+			sbTemp: sbTemp, sbOn: sbOn, upChip: upChip,
+			memBar: memBar, loadBar: loadBar,
+			ccTemp: ccTemp, ccMem: ccMem, ccLoad: ccLoad, ccUp: ccUp
+		};
 
-		L.rpc.declare({ object: 'luci-rpc', method: 'getWirelessClients' })().then(function(hosts) {
-			if (hosts && typeof hosts == 'object') {
-				self.online = Object.keys(hosts).length;
-				pill.textContent = '在线 %d'.format(self.online);
+		var setBar = function(node, p, text) {
+			node.querySelector('.mv').textContent = text;
+			node.querySelector('s').style.width = (p || 0) + '%';
+		};
+
+		var readTemp = function() {
+			var zones = ['/sys/class/thermal/thermal_zone0/temp',
+				'/sys/class/thermal/thermal_zone1/temp',
+				'/sys/class/thermal/thermal_zone2/temp'];
+			for (var i = 0; i < zones.length; i++) {
+				try {
+					var v = parseInt(fs.read(zones[i]).trim(), 10);
+					if (v > 0) return Math.round(v > 1000 ? v / 1000 : v);
+				}
+				catch (e) {}
 			}
-		}).catch(function() {});
+			return null;
+		};
+
+		this.refreshStats = function() {
+			var st = self.refs;
+
+			fs.read('/proc/meminfo').then(function(raw) {
+				var mt = 0, ma = 0;
+				(raw || '').split('\n').forEach(function(l) {
+					var m = l.match(/^MemTotal:\s*(\d+)/); if (m) mt = +m[1];
+					m = l.match(/^MemAvailable:\s*(\d+)/); if (m) ma = +m[1];
+				});
+				if (mt) {
+					var used = mt - ma;
+					var txt = (used / 1024).toFixed(0) + ' / ' + (mt / 1024 / 1024).toFixed(2) + ' G';
+					setBar(st.memBar, pct(used, mt), (used / 1024).toFixed(0) + 'M / ' + (mt / 1024 / 1024).toFixed(2) + 'G');
+					st.ccMem.lastChild.textContent = Math.round(used / mt * 100) + '%';
+				}
+			}).catch(function() {});
+
+			fs.read('/proc/loadavg').then(function(raw) {
+				var p = (raw || '').trim().split(' ').slice(0, 3);
+				if (p.length) {
+					var v = parseFloat(p[0]);
+					setBar(st.loadBar, Math.min(100, v / 4 * 100), p.join(' · '));
+					st.ccLoad.lastChild.textContent = p[0];
+				}
+			}).catch(function() {});
+
+			fs.read('/proc/uptime').then(function(raw) {
+				var sec = parseFloat((raw || '0').split(' ')[0]);
+				if (sec > 0) {
+					st.upChip.innerHTML = '<b>' + fmtUptime(sec) + '</b><i>运行时长</i>';
+					st.ccUp.lastChild.textContent = fmtUptime(sec);
+				}
+			}).catch(function() {});
+
+			var t = readTemp();
+			if (t != null) {
+				st.sbTemp.textContent = t + '°';
+				st.ccTemp.lastChild.textContent = t + ' °C';
+			}
+
+			L.rpc.declare({ object: 'luci', method: 'getOnlineUsers' })().then(function(r) {
+				var n = (r && typeof r.onlineusers == 'number') ? r.onlineusers : null;
+				if (n != null) {
+					st.sbOn.textContent = '在线 ' + n;
+					self.online = n;
+				}
+			}).catch(function() {});
+
+			L.rpc.declare({ object: 'luci-rpc', method: 'getWirelessClients' })().then(function(hosts) {
+				if (hosts && typeof hosts == 'object' && Object.keys(hosts).length) {
+					var n = Object.keys(hosts).length;
+					if (n > (self.online || 0)) {
+						st.sbOn.textContent = '在线 ' + n;
+						self.online = n;
+					}
+				}
+			}).catch(function() {});
+		};
+
+		this.refreshStats();
+		poll.add(function() { self.refreshStats(); }, 20);
+
+		/* ---- 天气（客户端直连，失败静默隐藏） ---- */
+		wxChip.style.display = 'none';
+		this.loadWeather = function() {
+			try {
+				var c = JSON.parse(localStorage.getItem('jdrs.wx.v2') || 'null');
+				if (c && Date.now() - c.t < 1800000) {
+					wxChip.innerHTML = c.h;
+					wxChip.style.display = '';
+					return;
+				}
+			}
+			catch (e) {}
+
+			Promise.all([
+				fetch('https://ipapi.co/json/').then(function(r) { return r.json(); }).catch(function() { return null; }),
+				Promise.resolve(null)
+			]).then(function(res) {
+				var g = res[0] || {};
+				var lat = g.latitude, lon = g.longitude;
+				if (!lat && !lon) throw new Error('no geo');
+				var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon
+					+ '&current=temperature_2m,weather_code&timezone=auto';
+				return fetch(url).then(function(r) { return r.json(); }).then(function(w) {
+					var cur = (w && w.current) || {};
+					var t = Math.round(cur.temperature_2m);
+					var code = cur.weather_code;
+					var emo = code == 0 ? '☀️' : (code <= 3 ? '⛅' : (code <= 48 ? '🌫' : (code <= 67 ? '🌧' : (code <= 77 ? '❄️' : (code <= 82 ? '🌦' : '⛈')))));
+					var city = (g.city || g.region || '').replace(/ (City|Province|Municipality)$/, '');
+					var h = '<b>' + t + '° ' + emo + '</b><i>' + (city || '当地天气') + '</i>';
+					wxChip.innerHTML = h;
+					wxChip.style.display = '';
+					try { localStorage.setItem('jdrs.wx.v2', JSON.stringify({ t: Date.now(), h: h })); } catch (e) {}
+				});
+			}).catch(function() { wxChip.style.display = 'none'; });
+		};
+		this.loadWeather();
 
 		/* ---- 交互 ---- */
 		this.bindSwipe(home, drawer);
+		this.bindCC(cc);
 		this.bindReorder(grid);
 		this.bindReorder(dockGrid);
 
@@ -297,7 +504,7 @@ return view.extend({
 		});
 
 		dclose.addEventListener('click', function() { self.close(); });
-		scrim.addEventListener('click', function() { self.close(); });
+		scrim.addEventListener('click', function() { self.closeCC(); self.close(); });
 
 		root.addEventListener('pointerdown', function(ev) {
 			if (!self.edit) return;
@@ -328,7 +535,10 @@ return view.extend({
 		this.gridList.forEach(function(it) {
 			if (q && it.title.toLowerCase().indexOf(q) < 0 && it.key.toLowerCase().indexOf(q) < 0)
 				return;
-			self.grid.appendChild(self.tile(it, false));
+			var t = self.tile(it, false);
+			t.style.animationDelay = (shown * 12) + 'ms';
+			t.classList.add('in');
+			self.grid.appendChild(t);
 			shown++;
 		});
 
@@ -626,7 +836,55 @@ return view.extend({
 		return this.all.filter(function(it) { return key[it.key]; });
 	},
 
+	openCC: function() {
+		if (this.ccOpen) return;
+		this.ccOpen = true;
+		this.cc.classList.add('open');
+		this.scrim.classList.add('open');
+		this.home.classList.add('dim');
+		if (navigator.vibrate) navigator.vibrate(6);
+	},
+
+	closeCC: function() {
+		if (!this.ccOpen) return;
+		this.ccOpen = false;
+		this.cc.classList.remove('open');
+		this.cc.style.transform = '';
+		if (!this.drawer.classList.contains('open'))
+			this.scrim.classList.remove('open');
+		this.home.classList.remove('dim');
+		this.guard = Date.now() + 220;
+	},
+
+	/* 主屏从顶部下拉 → 控制中心；控制中心上滑 → 收起 */
+	bindCC: function(cc) {
+		var self = this, start = 0, dragging = false;
+
+		cc.addEventListener('pointerdown', function(ev) {
+			if (ev.target.closest('.d-ccq')) return;
+			start = ev.clientY;
+			dragging = true;
+		});
+		cc.addEventListener('pointermove', function(ev) {
+			if (!dragging) return;
+			var d = ev.clientY - start;
+			if (d < 0) {
+				cc.classList.add('drag');
+				cc.style.transform = ty(Math.max(-100, d / 3.5) + '%');
+			}
+		});
+		cc.addEventListener('pointerup', function(ev) {
+			if (!dragging) return;
+			dragging = false;
+			var d = ev.clientY - start;
+			cc.classList.remove('drag');
+			cc.style.transform = '';
+			if (d < -60) self.closeCC();
+		});
+	},
+
 	open: function() {
+		this.closeCC();
 		this.drawer.classList.add('open');
 		this.scrim.classList.add('open');
 		this.home.classList.add('dim');
@@ -649,11 +907,12 @@ return view.extend({
 
 	bindSwipe: function(home, drawer) {
 		var self = this;
-		var active = false, moved = false, y0 = 0, dy = 0, t0 = 0;
+		var active = false, moved = false, y0 = 0, dy = 0, t0 = 0, fromTop = false;
 
 		home.addEventListener('pointerdown', function(ev) {
 			if (ev.target.closest('.d-tile')) return;
 			active = true; moved = false; y0 = ev.clientY; dy = 0; t0 = Date.now();
+			fromTop = y0 < window.innerHeight * 0.32;
 		});
 
 		home.addEventListener('pointermove', function(ev) {
@@ -663,7 +922,11 @@ return view.extend({
 			if (dy < 0) {
 				var shift = Math.min(1, -dy / 170);
 				drawer.classList.add('drag');
-				drawer.style.transform = 'translateY(' + (100 - shift * 100) + '%)';
+				drawer.style.transform = ty((100 - shift * 100) + '%');
+			}
+			else if (dy > 0 && fromTop && !self.ccOpen) {
+				self.cc.classList.add('drag');
+				self.cc.style.transform = ty(Math.max(-100, -100 + Math.min(1, dy / 150) * 100) + '%');
 			}
 		});
 
@@ -673,15 +936,20 @@ return view.extend({
 			drawer.classList.remove('drag');
 			drawer.style.transform = '';
 			if (!moved) return;
+			self.cc.classList.remove('drag');
+			self.cc.style.transform = '';
 			var v = dy / Math.max(1, Date.now() - t0);
 			if (dy < -55 || (v < -0.35 && dy < -18)) self.open();
-			else if (dy > 55) self.close();
+			else if (dy > 60 && fromTop && !self.ccOpen) self.openCC();
+			else if (dy > 60) self.close();
 		});
 
 		home.addEventListener('pointercancel', function() {
 			active = false;
 			drawer.classList.remove('drag');
 			drawer.style.transform = '';
+			self.cc.classList.remove('drag');
+			self.cc.style.transform = '';
 		});
 
 		var dStart = 0, dragging = false;
@@ -694,7 +962,7 @@ return view.extend({
 			var d = ev.clientY - dStart;
 			if (d > 0) {
 				drawer.classList.add('drag');
-				drawer.style.transform = 'translateY(' + Math.min(100, d / 3.5) + '%)';
+				drawer.style.transform = ty(Math.min(100, d / 3.5) + '%');
 			}
 		});
 		drawer.addEventListener('pointerup', function() {
