@@ -3380,3 +3380,84 @@ body[data-page="admin-jdrs-desktop"] .cbi-breadcrumb { display: none !important;
 }
 .jdrs-desk .d-grid .d-tile { width: 100%; }
 .jdrs-desk .d-empty { grid-column: 1 / -1; text-align: center; color: rgba(239,232,255,0.45); font-size: 12px; padding: 40px 0; }
+
+
+/* ===== JDRS v1.5（登录露营剪影 + 布局持久化 + 触摸整理） ===== */
+
+/* 登录页：全屏露营剪影夜空 */
+#jdrs-login-bg {
+	position: fixed;
+	inset: 0;
+	z-index: 0;
+	overflow: hidden;
+	pointer-events: none;
+	background: #0F0B26;
+}
+#jdrs-login-bg svg { width: 100%; height: 100%; display: block; }
+
+body.jdrs-login { background: #0F0B26 !important; }
+body.jdrs-login #maincontent { display: none !important; }
+body.jdrs-login header,
+body.jdrs-login footer { display: none !important; }
+body.jdrs-login #modal_overlay {
+	background: transparent !important;
+	-webkit-backdrop-filter: none !important;
+	backdrop-filter: none !important;
+}
+body.jdrs-login #modal_overlay .modal.login {
+	margin: 14vh auto 0 !important;
+	background: rgba(24, 19, 48, 0.72) !important;
+	-webkit-backdrop-filter: blur(22px) saturate(130%);
+	backdrop-filter: blur(22px) saturate(130%);
+	border: 1px solid rgba(255, 255, 255, 0.14) !important;
+	border-radius: 26px !important;
+	box-shadow: 0 34px 80px -24px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+}
+
+.jdrs-login-head { text-align: center; margin: 2px 0 20px; }
+.jdrs-login-clock {
+	font-size: 46px;
+	font-weight: 300;
+	line-height: 1.05;
+	letter-spacing: 1px;
+	color: #FFD79A;
+	text-shadow: 0 0 26px rgba(255, 201, 74, 0.35);
+	font-variant-numeric: tabular-nums;
+}
+.jdrs-login-sub {
+	margin-top: 6px;
+	font-size: 12px;
+	color: rgba(239, 232, 255, 0.55);
+	letter-spacing: 0.08em;
+}
+
+/* 抽屉头部按钮 */
+.jdrs-desk .d-dbtn { margin-left: 14px; }
+.jdrs-desk .d-dreset { color: rgba(239, 232, 255, 0.55); }
+
+/* 整理态：图标抖动 + 拖动反馈 */
+@keyframes jdrs-jiggle {
+	0%   { transform: rotate(-1.4deg); }
+	50%  { transform: rotate(1.4deg); }
+	100% { transform: rotate(-1.4deg); }
+}
+.jdrs-desk.edit .d-tile {
+	animation: jdrs-jiggle 0.32s infinite ease-in-out;
+	cursor: grab;
+}
+.jdrs-desk.edit .d-tile.lift {
+	animation: none;
+	transform: scale(1.12);
+	opacity: 0.75;
+	z-index: 5;
+	filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.55));
+}
+.jdrs-desk.edit .d-tile.lift::after {
+	content: "";
+	position: absolute;
+	inset: -6px -4px -4px;
+	border-radius: 14px;
+	border: 1px dashed rgba(255, 215, 154, 0.6);
+}
+.jdrs-desk.edit .d-tile { position: relative; }
+.jdrs-desk.edit .d-grid { padding-bottom: 24px; }

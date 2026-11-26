@@ -18,6 +18,9 @@ var TINTS = {
 	unknown:  ['#8FA6C4', '#4E6478']
 };
 
+var LS_GRID = 'jdrs.grid.v1';
+var LS_DOCK = 'jdrs.dock.v1';
+
 var WEEK = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
 
 function make(cls, html) {
@@ -66,7 +69,8 @@ return view.extend({
 		var self = this;
 		this.guard = 0;
 		this.online = 0;
-		this.items = this.collect(tree);
+		this.edit = false;
+		this.items = this.applyOrder(this.collect(tree), LS_GRID);
 
 		var root = make('jdrs-desk');
 		root.appendChild(make('d-wall'));
@@ -89,11 +93,12 @@ return view.extend({
 
 		var dock = make('d-dockwrap');
 		var dockGrid = make('d-dockgrid');
-		this.dockItems().forEach(function(it) {
+		this.dockList = this.applyOrder(this.dockItems(), LS_DOCK);
+		this.dockList.forEach(function(it) {
 			dockGrid.appendChild(self.tile(it, true));
 		});
 		dock.appendChild(dockGrid);
-		dock.appendChild(make('d-hint', '<span class="arw">︿</span>上滑打开应用'));
+		dock.appendChild(make('d-hint', '<span class="arw">︿</span>上滑打开应用 · 长按图标整理'));
 
 		home.appendChild(top);
 		home.appendChild(make('d-flex'));
@@ -110,8 +115,13 @@ return view.extend({
 
 		var dhead = make('d-dhead');
 		var dclose = make('d-dclose', '关闭');
+		var dedit = make('d-dclose d-dbtn', '整理');
+		var dreset = make('d-dclose d-dbtn d-dreset', '重置');
+		dreset.style.display = 'none';
 		dhead.appendChild(make('d-dtitle', '应用'));
 		dhead.appendChild(make('d-flex'));
+		dhead.appendChild(dedit);
+		dhead.appendChild(dreset);
 		dhead.appendChild(dclose);
 		drawer.appendChild(dhead);
 
@@ -133,6 +143,9 @@ return view.extend({
 		this.home = home;
 		this.drawer = drawer;
 		this.scrim = scrim;
+		this.grid = grid;
+		this.dockGrid = dockGrid;
+		this.editBtn = dedit;
 
 		var paintGrid = function(kw) {
 			var q = (kw || '').trim().toLowerCase();
@@ -175,6 +188,27 @@ return view.extend({
 
 		/* ---- 交互 ---- */
 		this.bindSwipe(home, drawer);
+		this.bindReorder(grid);
+		this.bindReorder(dockGrid);
+
+		dedit.addEventListener('click', function() {
+			if (self.edit) self.exitEdit();
+			else self.enterEdit();
+		});
+		dreset.addEventListener('click', function() {
+			if (!confirm('恢复默认图标顺序？')) return;
+			try {
+				localStorage.removeItem(LS_GRID);
+				localStorage.removeItem(LS_DOCK);
+			} catch (e) {}
+			location.reload();
+		});
+		root.addEventListener('pointerdown', function(ev) {
+			if (!self.edit) return;
+			if (ev.target.closest('.d-tile') || ev.target.closest('.d-dhead') || ev.target.closest('.d-search'))
+				return;
+			self.exitEdit();
+		});
 		dclose.addEventListener('click', function() { self.close(); });
 		scrim.addEventListener('click', function() { self.close(); });
 
@@ -211,6 +245,121 @@ return view.extend({
 		return out;
 	},
 
+	readLS: function(k) {
+		try {
+			var v = JSON.parse(localStorage.getItem(k) || 'null');
+			return Array.isArray(v) ? v : null;
+		}
+		catch (e) { return null; }
+	},
+
+	writeLS: function(k, arr) {
+		try { localStorage.setItem(k, JSON.stringify(arr)); }
+		catch (e) {}
+	},
+
+	applyOrder: function(list, saved) {
+		if (!saved || !saved.length) return list;
+		var byKey = {}, out = [];
+		list.forEach(function(it) { byKey[it.key] = it; });
+		saved.forEach(function(k) {
+			if (byKey[k]) { out.push(byKey[k]); delete byKey[k]; }
+		});
+		list.forEach(function(it) {
+			if (byKey[it.key]) out.push(it);
+		});
+		return out;
+	},
+
+	persistContainer: function(container) {
+		var keys = [];
+		Array.prototype.forEach.call(container.children, function(el) {
+			var k = el.getAttribute && el.getAttribute('data-key');
+			if (k) keys.push(k);
+		});
+		if (container === this.grid) this.writeLS(LS_GRID, keys);
+		else if (container === this.dockGrid) this.writeLS(LS_DOCK, keys);
+	},
+
+	enterEdit: function() {
+		if (this.edit) return;
+		this.edit = true;
+		this.root.classList.add('edit');
+		this.editBtn.textContent = '完成';
+		var reset = this.drawer.querySelector('.d-dreset');
+		if (reset) reset.style.display = '';
+		var input = this.drawer.querySelector('input');
+		if (input && input.value) {
+			input.value = '';
+			input.dispatchEvent(new Event('input'));
+			input.blur();
+		}
+		if (navigator.vibrate) navigator.vibrate(12);
+	},
+
+	exitEdit: function() {
+		if (!this.edit) return;
+		this.edit = false;
+		this.root.classList.remove('edit');
+		this.editBtn.textContent = '整理';
+		var reset = this.drawer.querySelector('.d-dreset');
+		if (reset) reset.style.display = 'none';
+		this.persistContainer(this.grid);
+		this.persistContainer(this.dockGrid);
+	},
+
+	/* 触摸/鼠标统一：长按 520ms 进入整理态，整理态下拖动排序并即时落盘 */
+	bindReorder: function(container) {
+		var self = this, drag = null, timer = null, sx = 0, sy = 0;
+
+		container.addEventListener('pointerdown', function(ev) {
+			var tile = ev.target.closest('.d-tile');
+			if (!tile || tile.parentNode !== container) return;
+
+			if (!self.edit) {
+				sx = ev.clientX; sy = ev.clientY;
+				timer = setTimeout(function() {
+					timer = null;
+					self.enterEdit();
+				}, 520);
+				return;
+			}
+
+			drag = tile;
+			tile.classList.add('lift');
+			try { tile.setPointerCapture(ev.pointerId); } catch (e) {}
+			ev.preventDefault();
+		});
+
+		container.addEventListener('pointermove', function(ev) {
+			if (timer && (Math.abs(ev.clientX - sx) > 10 || Math.abs(ev.clientY - sy) > 10)) {
+				clearTimeout(timer);
+				timer = null;
+			}
+			if (!drag) return;
+
+			var el = document.elementFromPoint(ev.clientX, ev.clientY);
+			var over = el && el.closest ? el.closest('.d-tile') : null;
+			if (!over || over === drag || over.parentNode !== container) return;
+
+			var r = over.getBoundingClientRect();
+			var after = ev.clientX > r.left + r.width / 2;
+			container.insertBefore(drag, after ? over.nextSibling : over);
+			ev.preventDefault();
+		});
+
+		var end = function() {
+			if (timer) { clearTimeout(timer); timer = null; }
+			if (!drag) return;
+			drag.classList.remove('lift');
+			drag = null;
+			self.persistContainer(container);
+		};
+
+		container.addEventListener('pointerup', end);
+		container.addEventListener('pointercancel', end);
+	},
+
 	dockItems: function() {
 		var prefer = ['admin/status/overview', 'admin/network/network', 'admin/network/wireless', 'admin/system/system'];
 		var byKey = {}, picked = [];
@@ -226,12 +375,14 @@ return view.extend({
 
 	tile: function(it, isDock) {
 		var tile = make('d-tile' + (isDock ? ' dock' : ''));
+		tile.setAttribute('data-key', it.key);
 		var ic = make('d-ic', iconSvg(it.icon));
 		ic.setAttribute('style', tintStyle(it.group));
 		tile.appendChild(ic);
 		tile.appendChild(make('d-tx', it.title));
 		var self = this;
 		tile.addEventListener('click', function(ev) {
+			if (self.edit) { ev.preventDefault(); return; }
 			if (Date.now() < self.guard) { ev.preventDefault(); return; }
 			location.href = it.url;
 		});
