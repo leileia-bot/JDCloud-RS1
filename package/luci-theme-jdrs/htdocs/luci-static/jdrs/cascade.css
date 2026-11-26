@@ -3018,3 +3018,146 @@ footer {
 		border-radius: 14px;
 	}
 }
+
+/* ==========================================================================
+ * JDRS v1.1 修补：手机上样式被 mobile.css 覆盖的问题
+ * ========================================================================== */
+
+/* 品牌标识：mobile.css 默认把 .brand 隐藏，这里显式恢复 */
+header .brand {
+	display: inline-flex !important;
+	align-items: center;
+	gap: 8px;
+	white-space: nowrap;
+	overflow: hidden;
+	max-width: 52vw;
+	text-overflow: ellipsis;
+}
+
+header .brand::before {
+	content: "";
+	width: 22px;
+	height: 22px;
+	flex: 0 0 22px;
+	background: url("logo.svg") center / contain no-repeat;
+	filter: drop-shadow(0 0 8px var(--jdrs-glow));
+}
+
+/* 页面大标题（状态/系统…） */
+#maincontent > h2,
+#maincontent > h3,
+.container > h2,
+.container > h3 {
+	font-weight: 600 !important;
+	letter-spacing: .3px;
+	color: var(--text-color-highest) !important;
+	border: 0 !important;
+	background: none !important;
+}
+
+/* 登录弹窗标题（真实节点是 h2/h3/h4，带 logo） */
+.modal.login > h2,
+.modal.login > h3,
+.modal.login > h4,
+.modal.login .modal-title {
+	display: flex !important;
+	align-items: center;
+	justify-content: center;
+	gap: 10px;
+	font-size: 1.12rem !important;
+	font-weight: 600 !important;
+	letter-spacing: .4px;
+	margin: 4px 0 18px !important;
+	color: var(--text-color-highest) !important;
+}
+
+.modal.login > h2::before,
+.modal.login > h3::before,
+.modal.login > h4::before {
+	content: "";
+	width: 30px;
+	height: 30px;
+	flex: 0 0 30px;
+	background: url("logo.svg") center / contain no-repeat;
+	filter: drop-shadow(0 0 12px var(--jdrs-glow));
+}
+
+.modal.login {
+	background: var(--jdrs-card) !important;
+	border: 1px solid var(--jdrs-card-border) !important;
+	-webkit-backdrop-filter: blur(14px) saturate(140%);
+	backdrop-filter: blur(14px) saturate(140%);
+	padding: 28px 24px 22px !important;
+}
+
+.modal.login input[type="text"],
+.modal.login input[type="password"] {
+	width: 100%;
+	padding: 11px 13px;
+	font-size: 15px;
+	text-align: left;
+	box-sizing: border-box;
+}
+
+.modal.login .btn,
+.modal.login button {
+	width: 100%;
+	margin-top: 14px;
+	padding: 11px 16px;
+	font-size: 15px;
+	letter-spacing: .3px;
+	background-image: linear-gradient(135deg, var(--jdrs-accent), var(--jdrs-accent-2)) !important;
+	border: 0 !important;
+	color: var(--on-primary-color) !important;
+	font-weight: 600;
+	border-radius: 10px !important;
+}
+
+/* 移动端表格：mobile.css 把 .table 转成 flex，这里把分隔线换成设计色 */
+@media screen and (max-device-width: 854px) {
+	body {
+		background: var(--jdrs-page-bg) fixed !important;
+	}
+
+	header {
+		min-height: 46px;
+	}
+
+	header .nav > li > a {
+		padding: 6px 8px !important;
+		font-size: .92em;
+	}
+
+	h1, h2 {
+		letter-spacing: .3px;
+	}
+
+	.table .tr {
+		border-top: 1px solid var(--jdrs-card-border) !important;
+		padding: 8px 0 !important;
+	}
+
+	.table .tr:first-child {
+		border-top: 0 !important;
+	}
+
+	.table .th,
+	.table .td {
+		border: 0 !important;
+		background: none !important;
+	}
+
+	.cbi-section,
+	.cbi-map {
+		border-radius: 14px !important;
+		padding: 12px 14px !important;
+	}
+
+	.cbi-section > h3 {
+		font-size: 1.02em;
+	}
+
+	#modal_overlay .modal {
+		margin: 12vh auto 0 !important;
+	}
+}
