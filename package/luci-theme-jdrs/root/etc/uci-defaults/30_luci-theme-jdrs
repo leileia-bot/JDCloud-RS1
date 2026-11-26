@@ -1,6 +1,8 @@
 #!/bin/sh
 
-# JDRS Aero: 注册主题，如当前仍是默认 Bootstrap 则自动切换
+# JDRS Aero: 注册主题，并强制其为当前主题
+# 登录页（露营剪影 + 大时钟）由主题模板渲染，只有 jdrs 生效时才存在，
+# 所以这里直接锁死 mediaurlbase，不跟随其它主题。
 
 changed=0
 
@@ -15,13 +17,8 @@ set_opt() {
 }
 
 set_opt themes.JDRS /luci-static/jdrs
-
-cur="$(uci -q get luci.main.mediaurlbase)"
-
-if [ "$PKG_UPGRADE" != 1 ] && { [ -z "$cur" ] || [ "$cur" = "/luci-static/bootstrap" ] || [ "$cur" = "/luci-static/bootstrap-light" ] || [ "$cur" = "/luci-static/bootstrap-dark" ]; }; then
-	uci set luci.main.mediaurlbase=/luci-static/jdrs
-	changed=1
-fi
+set_opt main.mediaurlbase /luci-static/jdrs
+set_opt main.mediaurlbase_dark /luci-static/jdrs
 
 [ "$changed" = 1 ] && uci commit luci
 

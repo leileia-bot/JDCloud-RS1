@@ -1,0 +1,25 @@
+#!/bin/sh /etc/rc.common
+
+# 开机再次锁死 JDRS 主题：即使上一次运行中被切到别的主题，
+# 重启后登录页也会回到露营剪影版本。
+
+START=19
+STOP=90
+
+start() {
+	local cur
+	cur="$(uci -q get luci.main.mediaurlbase)"
+
+	if [ "$cur" != "/luci-static/jdrs" ]; then
+		uci -q set luci.main.mediaurlbase=/luci-static/jdrs
+		uci -q set luci.main.mediaurlbase_dark=/luci-static/jdrs
+		uci -q commit luci
+	fi
+
+	[ -z "$(uci -q get luci.themes.JDRS)" ] && {
+		uci -q set luci.themes.JDRS=/luci-static/jdrs
+		uci -q commit luci
+	}
+
+	return 0
+}
