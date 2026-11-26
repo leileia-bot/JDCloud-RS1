@@ -161,6 +161,12 @@ jobs:
             \( -name "*.bin" -o -name "*.itb" -o -name "*.tar" -o -name "*.manifest" \) \
             -exec cp -f {} upload/ \;
           ls -l upload/
+          echo "--- factory image check ---"
+          for F in upload/*factory*.bin; do
+            [ -e "$F" ] || { echo "!! 没有 factory.bin"; continue; }
+            ls -l "$F"
+            python3 -c "import sys,re;d=open(sys.argv[1],'rb').read();m=re.search(b'hsqs',d);print('factory bytes:',len(d));print('rootfs offset:',m.start(),'(%.2f MiB)'%(m.start()/1048576)) if m else print('no squashfs magic')" "$F"
+          done
           echo "--- kernel size check ---"
           BIN=$(ls upload/*sysupgrade*.bin 2>/dev/null | head -1)
           if [ -n "$BIN" ]; then
