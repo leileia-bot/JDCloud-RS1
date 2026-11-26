@@ -10,7 +10,7 @@ LUCI_TITLE:=LuCI JDRS Aero Theme
 LUCI_DEPENDS:=+luci-base
 LUCI_PKGARCH:=all
 
-PKG_VERSION:=1.3.1
+PKG_VERSION:=1.4.0
 PKG_RELEASE:=1
 
 # 不压缩 CSS / 不预编译模板：源码直发，跨固件版本都能用
