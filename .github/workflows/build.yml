@@ -106,6 +106,10 @@ jobs:
             grep -nE "ssid=|key=" "$WIFI_UC" | head -5
           fi
 
+          # eMMC 设备定义 + eMMC DTS 段（移植 VIKINGYFY/immortalwrt@owrt）
+          # 产出 factory.bin：走 U-Boot 刷写才会重建 eMMC 分区布局，overlay 才能落到 eMMC
+          $GITHUB_WORKSPACE/.github/scripts/patch-emmc.sh .
+
           # 硬改 12M 内核槽
           MK=target/linux/qualcommax/image/ipq60xx.mk
           sed -i '/define Device\/jdcloud_re-ss-01/,/TARGET_DEVICES += jdcloud_re-ss-01/ s/KERNEL_SIZE := 6144k/KERNEL_SIZE := 12288k/' "$MK"

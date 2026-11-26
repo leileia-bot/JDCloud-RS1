@@ -1,0 +1,57 @@
+/*
+ * eMMC 块设备描述 —— 移植自 VIKINGYFY/immortalwrt@owrt
+ *   target/linux/qualcommax/dts/ipq6000-re-ss-01.dts
+ *
+ * 只搬 eMMC 相关部分：&sdhc 下的 mmc-card / block-device / ART 分区描述。
+ * 不带 ipq6018-nss.dtsi 与 ipq6018-common.dtsi —— 本固件是无 NSS 底座（eBPF/BTF 走内核），
+ * 引入 NSS 节点会与现有 ess 栈冲突。
+ *
+ * 注意：VK 的 DTS 里并没有 rootfs / rootfs_data 的 partition 节点。
+ * 这两个分区不是 DTS 声明的，是 factory.bin 在 U-Boot 写入 eMMC 时按镜像布局
+ * （append-kernel + pad-to KERNEL_SIZE + append-rootfs，尾部留空）建立的；
+ * 所以本固件真正的修法是让设备定义改用 Device/EmmcImage 并产出 factory.bin，
+ * 而不是往 DTS 里硬塞分区表。
+ */
+
+&sdhc {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	card@0 {
+		compatible = "mmc-card";
+		reg = <0>;
+
+		block {
+			compatible = "block-device";
+
+			partitions {
+				block-partition-art {
+					partname = "0:ART";
+
+					nvmem-layout {
+						compatible = "fixed-layout";
+						#address-cells = <1>;
+						#size-cells = <1>;
+
+						macaddr_art: macaddr@6 {
+							compatible = "mac-base";
+							reg = <0x6 0x6>;
+							#nvmem-cell-cells = <1>;
+						};
+					};
+				};
+			};
+		};
+	};
+};
+
+/*
+ * VK 原版在这里把 edma 的 mac-address 指到 &macaddr_art 1。
+ * 本机现网 MAC 取自 label-mac-device(&swport2)/uboot env，直接改指会让 WAN/LAN MAC
+ * 变掉、影响已有 DHCP 租约，所以这里只保留节点备用，不接线。
+ *
+ * &edma {
+ *	nvmem-cells = <&macaddr_art 1>;
+ *	nvmem-cell-names = "mac-address";
+ * };
+ */
